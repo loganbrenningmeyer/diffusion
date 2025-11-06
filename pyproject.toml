@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diffusion"
+version = "0.1.0"
+description = "From-scratch implementation of DDPM diffusion model."
+readme = "README.md"
+license = "MIT"
+
+dependencies = [
+    "numpy",
+    "tqdm"
+]
+
+[tool.setuptools.package.find]
+where = ["src"]
