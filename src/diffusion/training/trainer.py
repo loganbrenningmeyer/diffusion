@@ -51,13 +51,13 @@ class Trainer:
         Parameters:
             epochs (int): Total number of training epochs
         """
-        for epoch in tqdm(range(epochs), desc="Training UNet...", unit="Epoch"):
+        for epoch in range(epochs):
             # ----------
             # Run Training Epoch
             # ----------
             epoch_loss = 0.0
 
-            for x, _ in self.dataloader:
+            for x, _ in tqdm(self.dataloader, desc=f"Epoch {epoch}", unit="Batch"):
                 x = x.to(self.device)
                 loss = self.train_step(x)
                 epoch_loss += loss.item()
