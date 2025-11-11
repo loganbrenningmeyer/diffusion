@@ -348,13 +348,7 @@ class UNet(nn.Module):
         for i, dec_block in enumerate(self.decoder):
             # -- Concatenate skip connections when upsampling (not first block)
             skip = skips.pop() if i != 0 else None
-            try:
-                x = dec_block(x, t_emb, skip)
-            except:
-                print(f"DecoderBlock {i}")
-                print(f"x.shape: {x.shape}")
-                print(f"t_emb.shape: {t_emb.shape}")
-                print(f"skip.shape: {skip.shape}")
+            x = dec_block(x, t_emb, skip)
 
         # ----------
         # Final Layer

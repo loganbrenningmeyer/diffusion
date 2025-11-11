@@ -1,7 +1,9 @@
+import os
 import argparse
 from omegaconf import OmegaConf
 import torch
 from torch.utils.data import DataLoader
+import wandb
 
 from diffusion.data.datasets import load_dataset
 from diffusion.models.unet import UNet
@@ -68,6 +70,15 @@ def main():
         shuffle=True,
         num_workers=config.data.num_workers,
         pin_memory=True
+    )
+
+    # ----------
+    # Initialize wandb Logging
+    # ----------
+    wandb.init(
+        project=os.environ.get("WANDB_PROJECT", "diffusion"), 
+        entity=os.environ.get("WANDB_ENTITY", None),
+        name=config.train.run_name
     )
 
     # ----------

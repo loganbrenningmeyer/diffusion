@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
 from omegaconf import DictConfig
+import wandb
 from tqdm import tqdm
 
 from diffusion.models.unet import UNet
@@ -56,25 +57,30 @@ class Trainer:
             # Run Training Epoch
             # ----------
             epoch_loss = 0.0
+            num_batches = 0
 
             for x, _ in tqdm(self.dataloader, desc=f"Epoch {epoch}", unit="Batch"):
                 x = x.to(self.device)
                 loss = self.train_step(x)
+
                 epoch_loss += loss.item()
+                num_batches += 1
 
-            print(f"epoch_loss: {epoch_loss:.4f}")
+                # ----------
+                # Log Batch Loss / Save Checkpoint
+                # ----------
+                if num_batches > 0 and num_batches % self.log_interval == 0:
+                    self.log_loss("train/batch_loss", loss.item())
+
+                if num_batches > 0 and num_batches % self.save_interval == 0:
+                    self.save_checkpoint()
 
             # ----------
-            # Log Losses
+            # Log Average Epoch Loss
             # ----------
-            if epoch > 0 and epoch % self.log_interval == 0:
-                self.log_loss()
+            epoch_loss /= num_batches
+            self.log_loss("train/epoch_loss", epoch_loss)
 
-            # ----------
-            # Checkpoint Model
-            # ----------
-            if epoch > 0 and epoch % self.save_interval == 0:
-                self.save_checkpoint()
                 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -113,17 +119,15 @@ class Trainer:
 
         return loss
     
-    def log_loss(self):
+    def log_loss(self, label: str, loss: float):
         """
-        
+        Logs loss to wandb dashboard.
         
         Args:
-        
-        
-        Returns:
-        
+            label (str): Label for metric on dashboard.
+            loss (float): Current loss to log on dashboard. 
         """
-        pass
+        wandb.log({label: loss})
 
     def save_checkpoint(self):
         """
