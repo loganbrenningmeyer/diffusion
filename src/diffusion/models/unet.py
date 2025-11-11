@@ -2,14 +2,25 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import List
 
 
-def sinusoidal_embedding(t: torch.Tensor, dim: int):
-    '''
-    Parameters:
-    - t: (B,) Integer timesteps
-    - dim: Embedding dimension
-    '''
+def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
+    """
+    Computes sinusoidal time embeddings for t timesteps with dim dimensionality.
+    
+    Parameters
+    ----------
+    t : Tensor
+        Tensor of shape (B,) containing integer timesteps
+    dim : int
+        Dimensionality of the time embedding
+    
+    Returns
+    -------
+    t_emb : Tensor
+        Tensor of shape (B, dim) containing sinusoidal time embeddings
+    """
     half_dim = dim // 2
     # ----------
     # => k = 0,1,2,\ldots,\frac{d}{2}-1
@@ -28,7 +39,10 @@ def sinusoidal_embedding(t: torch.Tensor, dim: int):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, t_dim):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, out_ch: int, t_dim: int):
         super().__init__()
         # ----------
         # Skip Projection
@@ -52,7 +66,7 @@ class ResBlock(nn.Module):
         self.norm2 = nn.GroupNorm(32, out_ch)
         self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1)
 
-    def forward(self, x, t_emb):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
         skip = self.skip(x)
 
         x = self.norm1(x)
@@ -71,16 +85,29 @@ class ResBlock(nn.Module):
 
 
 class Downsample(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=2, padding=1)
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.conv(x)
 
 
 class EncoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, t_dim, num_heads, down: bool):
+    '''
+    
+    '''
+    def __init__(
+            self, 
+            in_ch: int, 
+            out_ch: int, 
+            t_dim: int, 
+            num_heads: int, 
+            down: bool
+    ):
         super().__init__()
         # ----------
         # Residual Blocks
@@ -96,7 +123,7 @@ class EncoderBlock(nn.Module):
         # ----------
         self.down = Downsample(in_ch, out_ch) if down else nn.Identity()
 
-    def forward(self, x, t_emb):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
         x = self.res1(x, t_emb)
         x = self.res2(x, t_emb)
         x = self.attn(x)
@@ -106,17 +133,31 @@ class EncoderBlock(nn.Module):
 
 
 class Upsample(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
     
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.interpolate(x, scale_factor=2, mode='nearest')
         return self.conv(x)
 
 
 class DecoderBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, skip_ch, t_dim, num_heads, up: bool):
+    '''
+    
+    '''
+    def __init__(
+            self, 
+            in_ch: int, 
+            out_ch: int, 
+            skip_ch: int, 
+            t_dim: int, 
+            num_heads: int, 
+            up: bool
+    ):
         super().__init__()
         # ----------
         # Upsampling
@@ -133,7 +174,7 @@ class DecoderBlock(nn.Module):
         # ----------
         self.attn = SelfAttentionBlock(out_ch, num_heads) if num_heads != 0 else nn.Identity()
 
-    def forward(self, x, t_emb, skip=None):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor, skip: torch.Tensor=None) -> torch.Tensor:
         x = self.up(x)
         x = torch.cat([x, skip], dim=1) if skip else x
         x = self.res1(x, t_emb)
@@ -143,12 +184,15 @@ class DecoderBlock(nn.Module):
 
 
 class SelfAttentionBlock(nn.Module):
-    def __init__(self, in_ch, num_heads=4):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, num_heads: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
         self.attn = nn.MultiheadAttention(in_ch, num_heads, batch_first=True)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, c, h, w = x.shape
         # -- GroupNorm / Flatten
         x_norm = self.norm(x)
@@ -161,13 +205,16 @@ class SelfAttentionBlock(nn.Module):
     
 
 class Bottleneck(nn.Module):
-    def __init__(self, in_ch, t_dim, num_heads=4):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, t_dim: int, num_heads: int):
         super().__init__()
         self.res1 = ResBlock(in_ch, in_ch, t_dim)
         self.attn = SelfAttentionBlock(in_ch, num_heads)
         self.res2 = ResBlock(in_ch, in_ch, t_dim)
 
-    def forward(self, x, t_emb):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
         x = self.res1(x, t_emb)
         x = self.attn(x)
         x = self.res2(x, t_emb)
@@ -175,13 +222,16 @@ class Bottleneck(nn.Module):
     
 
 class FinalLayer(nn.Module):
-    def __init__(self, in_ch, out_ch):
+    '''
+    
+    '''
+    def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
         self.act  = nn.SiLU()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.norm(x)
         x = self.act(x)
         x = self.conv(x)
@@ -192,12 +242,14 @@ class UNet(nn.Module):
     '''
     
     '''
-    def __init__(self, 
-                 in_ch=3, 
-                 base_ch=128, 
-                 ch_mults=[1,1,2,2,4,4],
-                 enc_heads=[0,0,0,0,8,8],
-                 mid_heads=4):
+    def __init__(
+            self, 
+            in_ch: int=3, 
+            base_ch: int=128, 
+            ch_mults: List[int]=[1,1,2,2,4,4],
+            enc_heads: List[int]=[0,0,0,0,8,8],
+            mid_heads: int=4
+    ):
         super().__init__()
 
         self.base_ch = base_ch
@@ -261,7 +313,7 @@ class UNet(nn.Module):
         # ----------
         self.final = FinalLayer(in_ch, 3)
 
-    def forward(self, x, t):
+    def forward(self, x: torch.Tensor, t: int) -> torch.Tensor:
         # ----------
         # Time Embedding
         # ----------

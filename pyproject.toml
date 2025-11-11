@@ -14,5 +14,5 @@ dependencies = [
     "tqdm"
 ]
 
-[tool.setuptools.package.find]
+[tool.setuptools.packages.find]
 where = ["src"]
