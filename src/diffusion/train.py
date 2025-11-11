@@ -31,9 +31,9 @@ def main():
     # ----------
     # Initialize UNet Model
     # ----------
-    in_ch     = config.data.in_ch
-    base_ch   = config.model.base_ch
-    ch_mults  = config.model.ch_mults
+    in_ch = config.data.in_ch
+    base_ch = config.model.base_ch
+    ch_mults = config.model.ch_mults
     enc_heads = config.model.enc_heads
     mid_heads = config.model.mid_heads
 
@@ -43,12 +43,12 @@ def main():
     # ----------
     # Create Diffusion Utilities Object
     # ----------
-    timesteps     = config.diffusion.timesteps
-    beta_start    = config.diffusion.beta_start
-    beta_end      = config.diffusion.beta_end
+    T = config.diffusion.T
+    beta_1 = config.diffusion.beta_1
+    beta_T = config.diffusion.beta_T
     beta_schedule = config.diffusion.beta_schedule
 
-    diffusion = Diffusion(timesteps, beta_start, beta_end, beta_schedule, device)
+    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, device)
 
     # ----------
     # Define Optimizer
@@ -73,7 +73,7 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    trainer = Trainer(model, diffusion, dataloader, optimizer, device, config.train)
+    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train)
 
     epochs = config.train.epochs
     trainer.train(epochs)

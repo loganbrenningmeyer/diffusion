@@ -9,17 +9,12 @@ def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
     """
     Computes sinusoidal time embeddings for t timesteps with dim dimensionality.
     
-    Parameters
-    ----------
-    t : Tensor
-        Tensor of shape (B,) containing integer timesteps
-    dim : int
-        Dimensionality of the time embedding
+    Args:
+        t (Tensor): Tensor of shape (B,) containing integer timesteps
+        dim (int): Dimensionality of the time embedding
     
-    Returns
-    -------
-    t_emb : Tensor
-        Tensor of shape (B, dim) containing sinusoidal time embeddings
+    Returns:
+        t_emb (Tensor): Tensor of shape (B, dim) containing sinusoidal time embeddings
     """
     half_dim = dim // 2
     # ----------
@@ -39,9 +34,9 @@ def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
 
 
 class ResBlock(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, out_ch: int, t_dim: int):
         super().__init__()
         # ----------
@@ -85,9 +80,9 @@ class ResBlock(nn.Module):
 
 
 class Downsample(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=2, padding=1)
@@ -97,9 +92,9 @@ class Downsample(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(
             self, 
             in_ch: int, 
@@ -133,9 +128,9 @@ class EncoderBlock(nn.Module):
 
 
 class Upsample(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
@@ -146,9 +141,9 @@ class Upsample(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(
             self, 
             in_ch: int, 
@@ -166,7 +161,7 @@ class DecoderBlock(nn.Module):
         # ----------
         # Residual Blocks
         # ----------
-        res1_in_ch = out_ch + skip_ch if up else out_ch
+        res1_in_ch = out_ch + skip_ch
         self.res1  = ResBlock(res1_in_ch, out_ch, t_dim)
         self.res2  = ResBlock(out_ch,     out_ch, t_dim)
         # ----------
@@ -176,7 +171,7 @@ class DecoderBlock(nn.Module):
 
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor, skip: torch.Tensor=None) -> torch.Tensor:
         x = self.up(x)
-        x = torch.cat([x, skip], dim=1) if skip else x
+        x = torch.cat([x, skip], dim=1) if skip is not None else x
         x = self.res1(x, t_emb)
         x = self.res2(x, t_emb)
         x = self.attn(x)
@@ -184,9 +179,9 @@ class DecoderBlock(nn.Module):
 
 
 class SelfAttentionBlock(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, num_heads: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
@@ -205,9 +200,9 @@ class SelfAttentionBlock(nn.Module):
     
 
 class Bottleneck(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, t_dim: int, num_heads: int):
         super().__init__()
         self.res1 = ResBlock(in_ch, in_ch, t_dim)
@@ -222,9 +217,9 @@ class Bottleneck(nn.Module):
     
 
 class FinalLayer(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
@@ -239,9 +234,9 @@ class FinalLayer(nn.Module):
 
 
 class UNet(nn.Module):
-    '''
+    """
     
-    '''
+    """
     def __init__(
             self, 
             in_ch: int=3, 
@@ -278,6 +273,8 @@ class UNet(nn.Module):
         # ----------
         # Encoder
         # ----------
+        skip_chs = []
+
         self.encoder = nn.ModuleList()
         for i, (ch_mult, num_heads) in enumerate(zip(ch_mults, enc_heads)):
             # -- No downsampling at final block
@@ -286,6 +283,8 @@ class UNet(nn.Module):
             out_ch = base_ch*ch_mult
             # -- Initialize EncoderBlock
             self.encoder.append(EncoderBlock(in_ch, out_ch, t_dim, num_heads, down))
+            # -- Record skip channels (no skip at final block)
+            skip_chs.append(in_ch) if down else skip_chs.append(0)
             # -- Update in_ch for next EncoderBlock
             in_ch = out_ch
 
@@ -301,8 +300,10 @@ class UNet(nn.Module):
         for i, (ch_mult, num_heads) in enumerate(zip(ch_mults[::-1], enc_heads[::-1])):
             # -- No upsampling at first block
             up = (i != 0)
-            # -- Compute out_ch and skip_ch based on block's ch_mult
-            out_ch = skip_ch = base_ch*ch_mult
+            # -- Compute out_ch based on block's ch_mult
+            out_ch = base_ch*ch_mult
+            # -- Pop skip_ch from matching EncoderBlock
+            skip_ch = skip_chs.pop()
             # -- Initialize DecoderBlock
             self.decoder.append(DecoderBlock(in_ch, out_ch, skip_ch, t_dim, num_heads, up))
             # -- Update in_ch for next DecoderBlock
@@ -313,7 +314,7 @@ class UNet(nn.Module):
         # ----------
         self.final = FinalLayer(in_ch, 3)
 
-    def forward(self, x: torch.Tensor, t: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         # ----------
         # Time Embedding
         # ----------
@@ -347,7 +348,13 @@ class UNet(nn.Module):
         for i, dec_block in enumerate(self.decoder):
             # -- Concatenate skip connections when upsampling (not first block)
             skip = skips.pop() if i != 0 else None
-            x = dec_block(x, t_emb, skip)
+            try:
+                x = dec_block(x, t_emb, skip)
+            except:
+                print(f"DecoderBlock {i}")
+                print(f"x.shape: {x.shape}")
+                print(f"t_emb.shape: {t_emb.shape}")
+                print(f"skip.shape: {skip.shape}")
 
         # ----------
         # Final Layer
