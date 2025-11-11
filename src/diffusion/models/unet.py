@@ -1,24 +1,48 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
 
+def sinusoidal_embedding(t: torch.Tensor, dim: int):
+    '''
+    Parameters:
+    - t: (B,) Integer timesteps
+    - dim: Embedding dimension
+    '''
+    half_dim = dim // 2
+    # ----------
+    # => k = 0,1,2,\ldots,\frac{d}{2}-1
+    # ----------
+    k_vals = torch.arange(half_dim, device=t.device)
+    # ----------
+    # => \omega_k t = \frac{t}{10000^{2k/d}} = \exp(-2k/d \cdot \ln(10000))
+    # ----------
+    freqs = torch.exp(-2*k_vals/dim * math.log(10000))  # (dim/2,)
+    freqs = freqs[None, :] * t[:, None].float()         # (B, dim/2)
+    # ----------
+    # => \text{PE}(t) = \{\sin(\omega_0 t),\sin(\omega_1 t),\ldots,\sin(\omega_{d/2-1}t),\cos(\omega_0 t),\cos(\omega_1 t),\ldots,\cos(\omega_{d/2-1}t)\}
+    # ----------
+    t_emb = torch.cat([torch.sin(freqs), torch.cos(freqs)], dim=1)  # (B, dim)
+    return t_emb
+
+
 class ResBlock(nn.Module):
     def __init__(self, in_ch, out_ch, t_dim):
         super().__init__()
-        # ---------
+        # ----------
         # Skip Projection
         # ----------
         if in_ch != out_ch:
             self.skip = nn.Conv2d(in_ch, out_ch, kernel_size=1)
         else:
             self.skip = nn.Identity()
-        # ---------
+        # ----------
         # Time Embedding Projection
         # ----------
         self.t_proj = nn.Linear(t_dim, out_ch)
-        # ---------
+        # ----------
         # Norms/Convolutions
         # ----------
         self.act   = nn.SiLU()
@@ -59,12 +83,12 @@ class Downsample(nn.Module):
 class EncoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, t_dim, down: bool):
         super().__init__()
-        # ---------
+        # ----------
         # Residual Blocks
         # ----------
         self.res1 = ResBlock(in_ch,  out_ch, t_dim)
         self.res2 = ResBlock(out_ch, out_ch, t_dim)
-        # ---------
+        # ----------
         # Downsampling
         # ----------
         self.down = Downsample(out_ch) if down else nn.Identity()
@@ -90,11 +114,11 @@ class Upsample(nn.Module):
 class DecoderBlock(nn.Module):
     def __init__(self, in_ch, out_ch, skip_ch, t_dim, up: bool):
         super().__init__()
-        # ---------
+        # ----------
         # Upsampling
         # ----------
         self.up   = Upsample(in_ch, out_ch) if up else nn.Identity()
-        # ---------
+        # ----------
         # Residual Blocks
         # ----------
         res1_in_ch = out_ch + skip_ch if up else out_ch
@@ -127,9 +151,12 @@ class SelfAttentionBlock(nn.Module):
         return x + attn_out
 
 class UNet(nn.Module):
+    '''
+    
+    '''
     def __init__(self, in_ch=3, base_ch=128, ch_mults=[1,1,2,2,4,4]):
         super().__init__()
-        # ---------
+        # ----------
         # Time Embedding MLP
         # ----------
         t_dim = base_ch * 4
@@ -138,7 +165,7 @@ class UNet(nn.Module):
             nn.SiLU(),
             nn.Linear(t_dim, t_dim)
         )
-        # ---------
+        # ----------
         # Stem
         # ----------
         self.stem = nn.Sequential(
@@ -147,21 +174,34 @@ class UNet(nn.Module):
             nn.SiLU()
         )
         in_ch = base_ch
-        # ---------
+        # ----------
         # Encoder
         # ----------
+        self.encoder = nn.ModuleList()
+        # for ch_mult in ch_mults:
 
-        # ---------
+
+        # ----------
         # Bottleneck
         # ----------
 
-        # ---------
+        # ----------
         # Decoder
         # ----------
 
-        # ---------
+        # ----------
         # Final Layer
         # ----------
 
     def forward(self, x, t):
         pass
+
+
+def main():
+    t = torch.arange(5)
+    print(f"t: {t}, shape: {t.shape}")
+    t_emb = sinusoidal_embedding(t, 128)
+    print(f"t_emb: {t_emb}, t_emb.shape: {t_emb.shape}")
+
+if __name__ == "__main__":
+    main()
