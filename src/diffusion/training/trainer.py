@@ -102,8 +102,6 @@ class Trainer:
             grid = make_sample_grid(x)
             self.log_grid("samples/grid", grid, step)
 
-            return
-
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
         Performs a single forward pass / update on the input batch

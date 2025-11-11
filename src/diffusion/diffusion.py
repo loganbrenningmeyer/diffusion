@@ -109,7 +109,7 @@ class Diffusion:
         # => q(x_t | x_0) = \mathcal{N}(x_t;\ \sqrt{\bar\alpha_t} x_0,\ (1 - \bar\alpha_t)I)
         # => x_t = \sqrt{\bar\alpha_t}x_0 + \sqrt{1 - \bar\alpha_t}\epsilon
         # ----------
-        alpha_bar_t = self.alpha_bars[t][:, None, None, None]   # (B, 1, 1, 1)
+        alpha_bar_t = self.alpha_bars[t][:, None, None, None]
         x_t = torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * eps
 
         return x_t, eps
