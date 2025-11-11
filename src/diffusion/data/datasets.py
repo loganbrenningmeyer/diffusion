@@ -1,3 +1,5 @@
+import math
+from torch.utils.data import Subset
 from torchvision import datasets
 import torchvision.transforms as T
 from omegaconf import DictConfig
@@ -39,5 +41,12 @@ def load_dataset(data_config: DictConfig):
             download=True,
             transform=transform
         )
+
+    # ----------
+    # Create Subset
+    # ----------
+    if data_config.subset is not None:
+        subset_size = math.floor(len(dataset) * data_config.subset)
+        dataset = Subset(dataset, range(subset_size))
 
     return dataset

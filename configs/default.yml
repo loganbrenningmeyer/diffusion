@@ -1,9 +1,10 @@
 data:
   name: "cifar10"
   path: "./datasets"
-  image_size: 32
   in_ch: 3
+  image_size: 32
   num_workers: 4
+  subset: 0.05
 
 model:
   base_ch: 128
@@ -18,10 +19,16 @@ diffusion:
   beta_schedule: "cosine"
 
 train:
+  run_name: "wandb_test"
   epochs: 100
   batch_size: 128
   lr: 2e-4
   ema_decay: 0.999
   log_interval: 1
   save_interval: 1000
-  run_name: "wandb_test"
+  save_path: "./checkpoints"
+  num_samples: 4
+
+rng:
+  global_seed: 42
+  sample_seeds: [1,7,21,42,87,101,2025,9001]

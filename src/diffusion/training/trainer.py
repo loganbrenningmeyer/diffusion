@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
+from diffusion.utils.visualization import make_sample_grid
 
 
 class Trainer:
@@ -26,6 +27,8 @@ class Trainer:
         device (torch.device): Device on which training will be performed.
         train_config (DictConfig): Config object containing misc. training parameters.
             - EMA decay, logging interval, saving interval
+        data_config (DictConfig): Config object containing dataset information for sampling
+            - in_ch, image_size
     """
     def __init__(
             self, 
@@ -34,16 +37,24 @@ class Trainer:
             optimizer: Optimizer, 
             dataloader: DataLoader, 
             device: torch.device, 
-            train_config: DictConfig
+            train_config: DictConfig,
+            data_config: DictConfig
     ):
         self.model = model
         self.diffusion = diffusion
         self.optimizer = optimizer
         self.dataloader = dataloader
         self.device = device
+        # -- Training Parameters
         self.ema_decay = train_config.ema_decay
         self.log_interval = train_config.log_interval
         self.save_interval = train_config.save_interval
+        self.save_path = train_config.save_path
+        # -- Sampling Parameters
+        in_ch = data_config.in_ch
+        image_size = data_config.image_size
+        num_samples = train_config.num_samples
+        self.sample_shape = (num_samples, in_ch, image_size, image_size)
 
     def train(self, epochs: int):
         """
@@ -52,6 +63,8 @@ class Trainer:
         Parameters:
             epochs (int): Total number of training epochs
         """
+        step = 0
+
         for epoch in range(epochs):
             # ----------
             # Run Training Epoch
@@ -65,23 +78,32 @@ class Trainer:
 
                 epoch_loss += loss.item()
                 num_batches += 1
+                step += 1
 
                 # ----------
                 # Log Batch Loss / Save Checkpoint
                 # ----------
-                if num_batches > 0 and num_batches % self.log_interval == 0:
-                    self.log_loss("train/batch_loss", loss.item())
+                if step > 0 and step % self.log_interval == 0:
+                    self.log_loss("train/batch_loss", loss.item(), step)
 
-                if num_batches > 0 and num_batches % self.save_interval == 0:
-                    self.save_checkpoint()
+                if step > 0 and step % self.save_interval == 0:
+                    self.save_checkpoint(step)
 
             # ----------
             # Log Average Epoch Loss
             # ----------
             epoch_loss /= num_batches
-            self.log_loss("train/epoch_loss", epoch_loss)
+            self.log_loss("train/epoch_loss", epoch_loss, step)
 
-                
+            # ----------
+            # Generate Samples / Log Sample Grid
+            # ----------
+            x = self.diffusion.sample(self.model, self.sample_shape)
+            grid = make_sample_grid(x)
+            self.log_grid("samples/grid", grid, step)
+
+            return
+
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
         Performs a single forward pass / update on the input batch
@@ -95,10 +117,10 @@ class Trainer:
         self.optimizer.zero_grad()
 
         # ----------
-        # Sample Batch of t-values [0, T-1]
+        # Sample Batch of t-values [1,T]
         # ----------
         batch_size = x.shape[0]
-        t = torch.randint(0, self.diffusion.T, (batch_size,), device=self.device)
+        t = torch.randint(1, self.diffusion.T+1, (batch_size,), device=self.device)
 
         # ----------
         # Apply Noise
@@ -119,24 +141,38 @@ class Trainer:
 
         return loss
     
-    def log_loss(self, label: str, loss: float):
+    def log_loss(self, label: str, loss: float, step: int):
         """
-        Logs loss to wandb dashboard.
+        Logs loss to wandb dashboard
         
         Args:
-            label (str): Label for metric on dashboard.
-            loss (float): Current loss to log on dashboard. 
+            label (str): Label for metric on dashboard
+            loss (float): Current loss to log on dashboard
+            step (int): Current step of the loss 
         """
-        wandb.log({label: loss})
+        wandb.log({label: loss}, step=step)
 
-    def save_checkpoint(self):
+    def log_grid(self, label: str, grid: torch.Tensor, step: int):
         """
-        
+        Logs grid of generated samples to wandb dashboard.
         
         Args:
-        
-        
-        Returns:
-        
+            label (str): Label for grid of samples on dashboard.
+            grid (Tensor): Grid of batch of generated samples of shape (C, H, W)
+            step (int): Current step used to produce samples
         """
-        pass
+        wandb.log({label: wandb.Image(grid)}, step=step)
+
+    def save_checkpoint(self, step: int):
+        """
+        Saves model checkpoint within save_path.
+
+        Args:
+            batch (int): Current training batch
+        """
+        ckpt = {
+            "model": self.model.state_dict(),
+            "optimizer": self.optimizer.state_dict(),
+            "step": step
+        }
+        torch.save(ckpt, f"{self.save_path}/model-step{step}.ckpt")

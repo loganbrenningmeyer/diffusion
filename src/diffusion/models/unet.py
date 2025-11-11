@@ -1,42 +1,11 @@
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List
 
-
-def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
-    """
-    Computes sinusoidal time embeddings for t timesteps with dim dimensionality.
-    
-    Args:
-        t (Tensor): Tensor of shape (B,) containing integer timesteps
-        dim (int): Dimensionality of the time embedding
-    
-    Returns:
-        t_emb (Tensor): Tensor of shape (B, dim) containing sinusoidal time embeddings
-    """
-    half_dim = dim // 2
-    # ----------
-    # => k = 0,1,2,\ldots,\frac{d}{2}-1
-    # ----------
-    k_vals = torch.arange(half_dim, device=t.device)
-    # ----------
-    # => \omega_k t = \frac{t}{10000^{2k/d}} = \exp(-2k/d \cdot \ln(10000))
-    # ----------
-    freqs = torch.exp(-2*k_vals/dim * math.log(10000))  # (dim/2,)
-    freqs = freqs[None, :] * t[:, None].float()         # (B, dim/2)
-    # ----------
-    # => \text{PE}(t) = \{\sin(\omega_0 t),\sin(\omega_1 t),\ldots,\sin(\omega_{d/2-1}t),\cos(\omega_0 t),\cos(\omega_1 t),\ldots,\cos(\omega_{d/2-1}t)\}
-    # ----------
-    t_emb = torch.cat([torch.sin(freqs), torch.cos(freqs)], dim=1)  # (B, dim)
-    return t_emb
+from diffusion.utils.time_embedding import sinusoidal_embedding
 
 
 class ResBlock(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, out_ch: int, t_dim: int):
         super().__init__()
         # ----------
@@ -80,9 +49,6 @@ class ResBlock(nn.Module):
 
 
 class Downsample(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=2, padding=1)
@@ -92,9 +58,6 @@ class Downsample(nn.Module):
 
 
 class EncoderBlock(nn.Module):
-    """
-    
-    """
     def __init__(
             self, 
             in_ch: int, 
@@ -128,9 +91,6 @@ class EncoderBlock(nn.Module):
 
 
 class Upsample(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
@@ -141,9 +101,6 @@ class Upsample(nn.Module):
 
 
 class DecoderBlock(nn.Module):
-    """
-    
-    """
     def __init__(
             self, 
             in_ch: int, 
@@ -179,9 +136,6 @@ class DecoderBlock(nn.Module):
 
 
 class SelfAttentionBlock(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, num_heads: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
@@ -200,9 +154,6 @@ class SelfAttentionBlock(nn.Module):
     
 
 class Bottleneck(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, t_dim: int, num_heads: int):
         super().__init__()
         self.res1 = ResBlock(in_ch, in_ch, t_dim)
@@ -217,9 +168,6 @@ class Bottleneck(nn.Module):
     
 
 class FinalLayer(nn.Module):
-    """
-    
-    """
     def __init__(self, in_ch: int, out_ch: int):
         super().__init__()
         self.norm = nn.GroupNorm(32, in_ch)
@@ -235,14 +183,21 @@ class FinalLayer(nn.Module):
 
 class UNet(nn.Module):
     """
+
     
+    Args:
+        in_ch (int): 
+        base_ch (int): 
+        ch_mults (list[int]): 
+        enc_heads (list[int]): 
+        mid_heads (int): 
     """
     def __init__(
             self, 
             in_ch: int=3, 
             base_ch: int=128, 
-            ch_mults: List[int]=[1,1,2,2,4,4],
-            enc_heads: List[int]=[0,0,0,0,8,8],
+            ch_mults: list[int]=[1,1,2,2,4,4],
+            enc_heads: list[int]=[0,0,0,0,8,8],
             mid_heads: int=4
     ):
         super().__init__()

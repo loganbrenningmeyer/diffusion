@@ -1,8 +1,8 @@
 import os
 import argparse
-from omegaconf import OmegaConf
 import torch
 from torch.utils.data import DataLoader
+from omegaconf import OmegaConf
 import wandb
 
 from diffusion.data.datasets import load_dataset
@@ -84,7 +84,7 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train)
+    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
 
     epochs = config.train.epochs
     trainer.train(epochs)

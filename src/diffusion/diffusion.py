@@ -1,6 +1,7 @@
 import torch
 
 from diffusion.models.unet import UNet
+from diffusion.utils.time_embedding import sinusoidal_embedding
 
 
 def create_beta_schedule(
@@ -45,6 +46,8 @@ def create_beta_schedule(
         alpha_bars = f_t / f_t[0]
         # => \beta_t = 1 - \frac{\bar\alpha_t}{\bar\alpha_{t-1}}
         betas = 1.0 - alpha_bars[1:]/alpha_bars[0:T]
+        # -- Clamp betas to avoid 0 and 1
+        betas = betas.clamp(min=1e-12, max=0.999)
     
     return betas
 
@@ -62,10 +65,27 @@ class Diffusion:
             device: torch.device
     ):
         self.T = T
-        self.betas = create_beta_schedule(T, beta_1, beta_T, beta_schedule, device)
-        self.alphas = 1.0 - self.betas
-        self.alpha_bars = torch.cumprod(self.alphas, dim=0)
         self.device = device
+        # ----------
+        # Define betas: (T+1,) - [beta_0, beta_T]
+        # => \beta_{0:T} = \{\beta_0,\beta_1,\beta_2,\ldots,\beta_T\},\quad \beta_0 = 0
+        # ----------
+        betas = create_beta_schedule(T, beta_1, beta_T, beta_schedule, device)
+        self.betas = torch.cat([torch.tensor([0.0], device=device), betas]) 
+        # ----------
+        # Define alphas: (T+1,) - [alpha_0, alpha_T] 
+        # => \alpha_t = 1 - \beta_t
+        # => \alpha_{0:T} = \{\alpha_0,\alpha_1,\alpha_2,\ldots,\alpha_T\},\quad \alpha_0 = 1
+        # ----------
+        alphas = 1.0 - betas
+        self.alphas = torch.cat([torch.tensor([1.0], device=device), alphas])
+        # ----------
+        # Define alpha_bars: (T+1,) - [alpha_bar_0, alpha_bar_T]
+        # => \bar\alpha_t = \prod_{s=1}^t \alpha_s
+        # => \bar\alpha_{0:T} = \{\bar\alpha_0,\bar\alpha_1,\bar\alpha_2,\ldots,\bar\alpha_T\},\quad \bar\alpha_0 = 1
+        # ----------
+        alpha_bars = torch.cumprod(alphas, dim=0)
+        self.alpha_bars = torch.cat([torch.tensor([1.0], device=device), alpha_bars])
 
     def forward_noise(self, x_0: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
@@ -73,7 +93,7 @@ class Diffusion:
         
         Args:
             x_0 (Tensor): Batch of clean input images of shape (B, C, H, W)
-            t (Tensor): Tensor of timesteps in [0,T-1] of shape (B,)
+            t (Tensor): Tensor of timesteps in [1,T] of shape (B,)
         
         Returns:
             x_t (Tensor): Batch of noised images of shape (B, C, H, W)
@@ -95,15 +115,61 @@ class Diffusion:
         return x_t, eps
 
     @torch.no_grad()
-    def sample(self, model: UNet) -> torch.Tensor:
+    def sample(self, model: UNet, shape: tuple[int, int, int, int]) -> torch.Tensor:
         """
-        Generates a sample using the UNet from random Gaussian noise by
+        Generates a batch of samples using the UNet from random Gaussian noise by
         denoising from timestep t=T to t=1
         
         Args:
-            model (UNet): Trained DDPM UNet
+            model (UNet): Trained DDPM UNet for noise prediction
+            shape (Tuple[int]): Shape of generated samples (B, C, H, W)
         
         Returns:
-            x_0 (Tensor): Sample produced by denoising random Gaussian noise
+            x_t (Tensor): Batch of generated samples of shape (B, C, H, W)
         """
-        pass
+        # ----------
+        # Sample Gaussian Noise (x_T)
+        # ----------
+        x_t = torch.randn(shape, device=self.device)
+
+        # ----------
+        # Iteratively Denoise t = T -> 1
+        # ----------
+        for t_i in range(self.T, 0, -1):
+            # ----------
+            # Create t batch Tensor
+            # ----------
+            t = torch.full((shape[0],), t_i, device=self.device)
+
+            # ----------
+            # Forward Pass
+            # ----------
+            eps_theta = model(x_t, t)
+
+            # ----------
+            # Compute estimated posterior mean
+            # => \mu_\theta(x_t, t) = \frac{1}{\sqrt{\alpha_t}}\Bigl(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\epsilon_\theta(x_t,t)\Bigr)
+            # ----------
+            beta_t = self.betas[t][:, None, None, None]
+            alpha_t = self.alphas[t][:, None, None, None]
+            alpha_bar_t = self.alpha_bars[t][:, None, None, None]
+
+            mu_theta = 1.0/torch.sqrt(alpha_t) * (x_t - (beta_t/torch.sqrt(1 - alpha_bar_t)) * eps_theta)
+
+            # ----------
+            # Compute posterior variance
+            # => \tilde\beta_t = \frac{1 - \bar\alpha_{t-1}}{1 - \bar\alpha_t}\beta_t
+            # ----------
+            alpha_bar_tm1 = self.alpha_bars[t - 1][:, None, None, None]
+
+            beta_tilde = (1 - alpha_bar_tm1)/(1 - alpha_bar_t) * beta_t
+
+            # ----------
+            # Sample Gaussian Noise / Compute x_t-1
+            # => x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}\epsilon,\quad \epsilon \sim \mathcal{N}(0,I)\ \text{if}\ t > 1\ \text{else}\ \epsilon=0
+            # ----------
+            eps = torch.randn_like(x_t, device=self.device) if t_i > 1 else torch.zeros_like(x_t)
+
+            x_t = mu_theta + torch.sqrt(beta_tilde) * eps
+
+        return x_t
