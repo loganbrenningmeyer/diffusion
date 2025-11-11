@@ -1,6 +1,6 @@
 data:
   name: "cifar10"
-  path: "./data"
+  path: "./datasets"
   image_size: 32
   in_ch: 3
   num_workers: 4
