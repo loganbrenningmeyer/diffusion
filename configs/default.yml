@@ -7,7 +7,7 @@ data:
   in_ch: 3
   image_size: 32
   num_workers: 4
-  subset: 0.05
+  subset: 0.025
 
 # ====================
 # Model Configuration
@@ -26,7 +26,7 @@ diffusion:
   beta_1: 1e-4
   beta_T: 0.02
   beta_schedule: "cosine"
-  sampler: "ddpm"
+  sampler: "ddim"
   # -- DDIM Parameters
   n_steps: 50
   eta: 0.0

@@ -96,7 +96,7 @@ class Diffusion:
         # ----------
         alphas = 1.0 - betas
         self.alphas = torch.cat([torch.tensor([1.0], device=device), alphas])
-        
+
         # ----------
         # Define alpha_bars: (T+1,) - [alpha_bar_0, alpha_bar_T]
         # => \bar\alpha_t = \prod_{s=1}^t \alpha_s
@@ -272,7 +272,8 @@ class Diffusion:
             # Compute standard deviation of added noise
             # => \sigma_t(\eta) = \eta \sqrt{\frac{1-\bar\alpha_{t_{i-1}}}{1-\bar\alpha_{t_i}}} \sqrt{1-\frac{\bar\alpha_{t_i}}{\bar\alpha_{t_{i-1}}}}
             # ----------
-            alpha_bar_prev = self.alpha_bars[t_vals[i+1]][:, None, None, None]
+            t_prev = torch.full((shape[0],), t_vals[i+1], device=self.device)
+            alpha_bar_prev = self.alpha_bars[t_prev][:, None, None, None]
 
             sigma_t = self.eta * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar_t)) * torch.sqrt(1 - alpha_bar_t / alpha_bar_prev)
 

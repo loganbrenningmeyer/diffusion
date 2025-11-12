@@ -49,8 +49,11 @@ def main():
     beta_1 = config.diffusion.beta_1
     beta_T = config.diffusion.beta_T
     beta_schedule = config.diffusion.beta_schedule
+    sampler = config.diffusion.sampler
+    n_steps = config.diffusion.n_steps
+    eta = config.diffusion.eta
 
-    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, device)
+    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, sampler, n_steps, eta, device)
 
     # ----------
     # Define Optimizer
