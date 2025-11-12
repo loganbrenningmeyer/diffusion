@@ -1,3 +1,6 @@
+# ====================
+# Dataset Configuration
+# ====================
 data:
   name: "cifar10"
   path: "./datasets"
@@ -6,18 +9,31 @@ data:
   num_workers: 4
   subset: 0.05
 
+# ====================
+# Model Configuration
+# ====================
 model:
   base_ch: 128
   ch_mults: [1,1,2,2,4,4]
   enc_heads: [0,0,0,0,8,8]
   mid_heads: 4
-  
+
+# ====================
+# Diffusion Parameters
+# ====================
 diffusion:
   T: 1000
   beta_1: 1e-4
   beta_T: 0.02
   beta_schedule: "cosine"
+  sampler: "ddpm"
+  # -- DDIM Parameters
+  n_steps: 50
+  eta: 0.0
 
+# ====================
+# Training Parameters
+# ====================
 train:
   run_name: "wandb_test"
   epochs: 100
@@ -29,6 +45,9 @@ train:
   save_path: "./checkpoints"
   num_samples: 4
 
+# ====================
+# Seed Configuration
+# ====================
 rng:
   global_seed: 42
   sample_seeds: [1,7,21,42,87,101,2025,9001]

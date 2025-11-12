@@ -55,6 +55,15 @@ def create_beta_schedule(
 class Diffusion:
     """
     
+    Args:
+        T (int): 
+        beta_1 (float): 
+        beta_T (float): 
+        beta_schedule (float): 
+        sampler (str): 
+        n_steps (int): 
+        eta (float): 
+        device (torch.device): 
     """
     def __init__(
             self, 
@@ -62,16 +71,24 @@ class Diffusion:
             beta_1: float, 
             beta_T: float, 
             beta_schedule: str, 
+            sampler: str,
+            n_steps: int,
+            eta: float,
             device: torch.device
     ):
         self.T = T
+        self.sampler = sampler
+        self.n_steps = n_steps
+        self.eta = eta
         self.device = device
+
         # ----------
         # Define betas: (T+1,) - [beta_0, beta_T]
         # => \beta_{0:T} = \{\beta_0,\beta_1,\beta_2,\ldots,\beta_T\},\quad \beta_0 = 0
         # ----------
         betas = create_beta_schedule(T, beta_1, beta_T, beta_schedule, device)
         self.betas = torch.cat([torch.tensor([0.0], device=device), betas]) 
+
         # ----------
         # Define alphas: (T+1,) - [alpha_0, alpha_T] 
         # => \alpha_t = 1 - \beta_t
@@ -79,6 +96,7 @@ class Diffusion:
         # ----------
         alphas = 1.0 - betas
         self.alphas = torch.cat([torch.tensor([1.0], device=device), alphas])
+        
         # ----------
         # Define alpha_bars: (T+1,) - [alpha_bar_0, alpha_bar_T]
         # => \bar\alpha_t = \prod_{s=1}^t \alpha_s
@@ -113,16 +131,39 @@ class Diffusion:
         x_t = torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * eps
 
         return x_t, eps
-
-    @torch.no_grad()
-    def sample(self, model: UNet, shape: tuple[int, int, int, int]) -> torch.Tensor:
+    
+    def sample(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
         """
-        Generates a batch of samples using the UNet from random Gaussian noise by
-        denoising from timestep t=T to t=1
+        Coordinates generating a batch of samples of the specified
+        shape (B,C,H,W) using either DDPM or DDIM sampling.
         
         Args:
             model (UNet): Trained DDPM UNet for noise prediction
-            shape (Tuple[int]): Shape of generated samples (B, C, H, W)
+            shape (tuple[int]): Shape of generated samples (B, C, H, W)
+        
+        Returns:
+            x_t (Tensor): Batch of generated samples of shape (B, C, H, W)
+        """
+        # ----------
+        # DDPM
+        # ----------
+        if self.sampler == "ddpm":
+            return self.sample_ddpm(model, shape)
+        # ----------
+        # DDIM
+        # ----------
+        elif self.sampler == "ddim":
+            return self.sample_ddim(model, shape)
+
+    @torch.no_grad()
+    def sample_ddpm(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
+        """
+        Performs DDPM sampling to generate a batch of samples of the specified 
+        shape (B,C,H,W) using the diffusion UNet.
+        
+        Args:
+            model (UNet): Trained DDPM UNet for noise prediction
+            shape (tuple[int]): Shape of generated samples (B, C, H, W)
         
         Returns:
             x_t (Tensor): Batch of generated samples of shape (B, C, H, W)
@@ -162,7 +203,7 @@ class Diffusion:
             # ----------
             alpha_bar_tm1 = self.alpha_bars[t - 1][:, None, None, None]
 
-            beta_tilde = (1 - alpha_bar_tm1)/(1 - alpha_bar_t) * beta_t
+            beta_tilde = (1 - alpha_bar_tm1) / (1 - alpha_bar_t) * beta_t
 
             # ----------
             # Sample Gaussian Noise / Compute x_t-1
@@ -171,5 +212,76 @@ class Diffusion:
             eps = torch.randn_like(x_t, device=self.device) if t_i > 1 else torch.zeros_like(x_t)
 
             x_t = mu_theta + torch.sqrt(beta_tilde) * eps
+
+        return x_t
+    
+    @torch.no_grad()
+    def sample_ddim(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
+        """
+        Performs DDIM sampling to generate a batch of samples of the specified
+        shape (B,C,H,W) using the diffusion UNet.
+        
+        Args:
+            model (UNet): Trained DDPM UNet for noise prediction
+            shape (tuple[int]): Shape of generated samples (B, C, H, W)
+        
+        Returns:
+            x_t (Tensor): Batch of generated samples of shape (B, C, H, W)
+        """
+        # ----------
+        # Sample Gaussian Noise (x_T)
+        # ----------
+        x_t = torch.randn(shape, device=self.device)
+
+        # ----------
+        # Uniformly space n_steps t-values [T...1]
+        # => t_i = \text{round}\Bigl(T-(i-1)\frac{T-1}{S-1}\Bigr),\quad i=1,\ldots,S
+        # ----------
+        t_vals = [round(self.T - (i-1) * (self.T-1)/(self.n_steps-1)) for i in range(1, self.n_steps+1)]
+
+        # ----------
+        # Iteratively Denoise t = T->1
+        # ----------
+        for i, t_i in enumerate(t_vals):
+            # ----------
+            # Create t batch Tensor
+            # ----------
+            t = torch.full((shape[0],), t_i, device=self.device)
+
+            # ----------
+            # Forward Pass
+            # ----------
+            eps_theta = model(x_t, t)
+
+            # ----------
+            # Compute estimated clean x_0
+            # => \hat{x}_0 = \frac{x_{t_i} - \sqrt{1-\bar\alpha_{t_i}}\epsilon_\theta(x_{t_i},{t_i})}{\sqrt{\bar\alpha_{t_i}}}
+            # ----------
+            alpha_bar_t = self.alpha_bars[t][:, None, None, None]
+
+            x_0 = (x_t - torch.sqrt(1 - alpha_bar_t) * eps_theta) / torch.sqrt(alpha_bar_t)
+
+            # ----------
+            # At t_i = 1, return x_0
+            # ----------
+            if t_i == 1:
+                x_t = x_0
+                break
+
+            # ----------
+            # Compute standard deviation of added noise
+            # => \sigma_t(\eta) = \eta \sqrt{\frac{1-\bar\alpha_{t_{i-1}}}{1-\bar\alpha_{t_i}}} \sqrt{1-\frac{\bar\alpha_{t_i}}{\bar\alpha_{t_{i-1}}}}
+            # ----------
+            alpha_bar_prev = self.alpha_bars[t_vals[i+1]][:, None, None, None]
+
+            sigma_t = self.eta * torch.sqrt((1 - alpha_bar_prev) / (1 - alpha_bar_t)) * torch.sqrt(1 - alpha_bar_t / alpha_bar_prev)
+
+            # ----------
+            # Compute x_t-1
+            # => x_{t-1} = \sqrt{\bar\alpha_{t-1}}\hat{x}_0 + \sqrt{1-\bar\alpha_{t-1}-\sigma_t^2(\eta)}\epsilon_\theta(x_t,t) + \sigma_t(\eta)z,\quad z \sim \mathcal{N}(0,I)
+            # ----------
+            z = torch.randn_like(x_t) if self.eta != 0 else torch.zeros_like(x_t)
+
+            x_t = torch.sqrt(alpha_bar_prev) * x_0 + torch.sqrt(1 - alpha_bar_prev - sigma_t**2) * eps_theta + sigma_t * z
 
         return x_t

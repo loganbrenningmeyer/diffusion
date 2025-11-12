@@ -45,11 +45,13 @@ class Trainer:
         self.optimizer = optimizer
         self.dataloader = dataloader
         self.device = device
+
         # -- Training Parameters
         self.ema_decay = train_config.ema_decay
         self.log_interval = train_config.log_interval
         self.save_interval = train_config.save_interval
         self.save_path = train_config.save_path
+
         # -- Sampling Parameters
         in_ch = data_config.in_ch
         image_size = data_config.image_size
@@ -73,16 +75,20 @@ class Trainer:
             num_batches = 0
 
             for x, _ in tqdm(self.dataloader, desc=f"Epoch {epoch}", unit="Batch"):
+                # ----------
+                # Perform Train Step
+                # ----------
                 x = x.to(self.device)
                 loss = self.train_step(x)
 
                 epoch_loss += loss.item()
-                num_batches += 1
-                step += 1
 
                 # ----------
                 # Log Batch Loss / Save Checkpoint
                 # ----------
+                num_batches += 1
+                step += 1
+
                 if step > 0 and step % self.log_interval == 0:
                     self.log_loss("train/batch_loss", loss.item(), step)
 
