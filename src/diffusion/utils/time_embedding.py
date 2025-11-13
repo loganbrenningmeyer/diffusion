@@ -1,9 +1,9 @@
 import math
 import torch
 
-def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
+def sinusoidal_encoding(t: torch.Tensor, dim: int) -> torch.Tensor:
     """
-    Computes sinusoidal time embeddings for t timesteps with dim dimensionality.
+    Computes sinusoidal time encodings for t timesteps with dim dimensionality.
     
     Args:
         t (Tensor): Tensor of shape (B,) containing integer timesteps
@@ -28,5 +28,5 @@ def sinusoidal_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
     # => \text{PE}(t) = \{\sin(\omega_0 t),\sin(\omega_1 t),\ldots,\sin(\omega_{d/2-1}t),\cos(\omega_0 t),\cos(\omega_1 t),\ldots,\cos(\omega_{d/2-1}t)\}
     # ----------
     t_emb = torch.cat([torch.sin(freqs), torch.cos(freqs)], dim=1)  # (B, dim)
-    
+
     return t_emb

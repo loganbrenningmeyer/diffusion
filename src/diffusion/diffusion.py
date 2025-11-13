@@ -1,7 +1,6 @@
 import torch
 
 from diffusion.models.unet import UNet
-from diffusion.utils.time_embedding import sinusoidal_embedding
 
 
 def create_beta_schedule(

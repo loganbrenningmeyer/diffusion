@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from diffusion.utils.time_embedding import sinusoidal_embedding
+from diffusion.utils.time_embedding import sinusoidal_encoding
 
 
 class ResBlock(nn.Module):
@@ -128,7 +128,7 @@ class DecoderBlock(nn.Module):
         res1_in_ch = out_ch + skip_ch
         self.res1  = ResBlock(res1_in_ch, out_ch, t_dim)
         self.res2  = ResBlock(out_ch,     out_ch, t_dim)
-        
+
         # ----------
         # Self-Attention
         # ----------
@@ -281,7 +281,7 @@ class UNet(nn.Module):
         # ----------
         # Time Embedding
         # ----------
-        t_emb = sinusoidal_embedding(t, self.base_ch)
+        t_emb = sinusoidal_encoding(t, self.base_ch)
         t_emb = self.t_mlp(t_emb)
 
         # ----------
