@@ -7,7 +7,9 @@ data:
   in_ch: 3
   image_size: 32
   num_workers: 4
-  subset: 0.025
+  subset:
+    enable: 0
+    ratio: 0.2
 
 # ====================
 # Model Configuration

@@ -45,8 +45,8 @@ def load_dataset(data_config: DictConfig):
     # ----------
     # Create Subset
     # ----------
-    if data_config.subset is not None:
-        subset_size = math.floor(len(dataset) * data_config.subset)
+    if data_config.subset.enable:
+        subset_size = math.floor(len(dataset) * data_config.subset.ratio)
         dataset = Subset(dataset, range(subset_size))
 
     return dataset
