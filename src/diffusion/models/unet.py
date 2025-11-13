@@ -15,19 +15,23 @@ class ResBlock(nn.Module):
             self.skip = nn.Conv2d(in_ch, out_ch, kernel_size=1)
         else:
             self.skip = nn.Identity()
+
         # ----------
         # Time Embedding Projection
         # ----------
         self.t_proj = nn.Linear(t_dim, out_ch)
+
         # ----------
-        # Norms/Convolutions
+        # Activation / GroupNorms
         # ----------
         self.act   = nn.SiLU()
-
         self.norm1 = nn.GroupNorm(32, in_ch)
-        self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
-        
         self.norm2 = nn.GroupNorm(32, out_ch)
+
+        # ----------
+        # Convolutions
+        # ----------
+        self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1)
 
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
@@ -72,10 +76,12 @@ class EncoderBlock(nn.Module):
         # ----------
         self.res1 = ResBlock(in_ch, in_ch, t_dim)
         self.res2 = ResBlock(in_ch, in_ch, t_dim)
+
         # ----------
         # Self-Attention
         # ----------
         self.attn = SelfAttentionBlock(in_ch, num_heads) if num_heads != 0 else nn.Identity()
+
         # ----------
         # Downsampling
         # ----------
@@ -115,12 +121,14 @@ class DecoderBlock(nn.Module):
         # Upsampling
         # ----------
         self.up = Upsample(in_ch, out_ch) if up else nn.Identity()
+
         # ----------
         # Residual Blocks
         # ----------
         res1_in_ch = out_ch + skip_ch
         self.res1  = ResBlock(res1_in_ch, out_ch, t_dim)
         self.res2  = ResBlock(out_ch,     out_ch, t_dim)
+        
         # ----------
         # Self-Attention
         # ----------

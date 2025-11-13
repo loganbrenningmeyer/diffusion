@@ -11,7 +11,11 @@ license = "MIT"
 
 dependencies = [
     "numpy",
-    "tqdm"
+    "tqdm",
+    "torch",
+    "torchvision",
+    "omegaconf",
+    "wandb"
 ]
 
 [tool.setuptools.packages.find]

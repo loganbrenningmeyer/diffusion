@@ -149,6 +149,7 @@ class Diffusion:
         # ----------
         if self.sampler == "ddpm":
             return self.sample_ddpm(model, shape)
+        
         # ----------
         # DDIM
         # ----------

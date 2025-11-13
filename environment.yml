@@ -1,10 +1,14 @@
 name: diffusion
-channels: [pytorch, nvidia, conda-forge, defaults]
+channels:
+  - conda-forge
+  - defaults
+
 dependencies:
-  - python=3.12
-  - pytorch
-  - torchvision
-  - pytorch-cuda=12.4
+  - python=3.10
   - pip
+  - setuptools
+  - wheel
+  - pyyaml
+  
   - pip:
     - -e .

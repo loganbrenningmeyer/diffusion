@@ -19,4 +19,5 @@ def make_sample_grid(x: torch.Tensor):
     x = x.clamp(0,1)
     
     grid = make_grid(x, pad_value=1.0).cpu()
+    
     return grid
