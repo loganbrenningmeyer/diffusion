@@ -21,6 +21,7 @@ def load_dataset(data_config: DictConfig):
     # ----------
     transforms = [
         T.Resize(data_config.image_size),
+        T.RandomHorizontalFlip(),
         T.ToTensor()
     ]
 
