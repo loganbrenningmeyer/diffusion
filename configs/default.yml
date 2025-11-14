@@ -16,8 +16,8 @@ data:
 # ====================
 model:
   base_ch: 128
-  ch_mults: [1,1,2,2,4,4]
-  enc_heads: [0,0,0,0,8,8]
+  ch_mults: [1,2,4,4]
+  enc_heads: [0,4,0,0]
   mid_heads: 4
 
 # ====================

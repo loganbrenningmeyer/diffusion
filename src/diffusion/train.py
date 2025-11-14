@@ -42,6 +42,8 @@ def main():
     model = UNet(in_ch, base_ch, ch_mults, enc_heads, mid_heads)
     model.to(device)
 
+    print(f"UNet Parameters: {sum(p.numel() for p in model.parameters())}")
+
     # ----------
     # Create Diffusion Utilities Object
     # ----------
