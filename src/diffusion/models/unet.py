@@ -62,38 +62,73 @@ class Downsample(nn.Module):
 
 
 class EncoderBlock(nn.Module):
+    """
+    
+    
+    Args:
+        in_ch (int): 
+        out_ch (int): 
+        skip_ch (int): 
+        t_dim (int): 
+        num_res_blocks (int): 
+        num_heads (int): 
+        is_down (bool): 
+    
+    Returns:
+        x (Tensor): 
+    """
     def __init__(
             self, 
             in_ch: int, 
             out_ch: int, 
             t_dim: int, 
+            num_res_blocks: int,
             num_heads: int, 
-            down: bool
+            is_down: bool
     ):
         super().__init__()
+
+        self.is_down = is_down
+
         # ----------
         # Residual Blocks
         # ----------
-        self.res1 = ResBlock(in_ch, in_ch, t_dim)
-        self.res2 = ResBlock(in_ch, in_ch, t_dim)
+        self.res_blocks = nn.ModuleList(
+            [ResBlock(in_ch,  out_ch, t_dim)] +
+            [ResBlock(out_ch, out_ch, t_dim) for _ in range(num_res_blocks - 1)]
+        )
 
         # ----------
         # Self-Attention
         # ----------
-        self.attn = SelfAttentionBlock(in_ch, num_heads) if num_heads != 0 else nn.Identity()
+        if num_heads != 0:
+            self.attn_blocks = nn.ModuleList([SelfAttentionBlock(out_ch, num_heads) for _ in range(num_res_blocks)])
+        else:
+            self.attn_blocks = nn.ModuleList([nn.Identity() for _ in range(num_res_blocks)])
 
         # ----------
-        # Downsampling
+        # Downsample
         # ----------
-        self.down = Downsample(in_ch, out_ch) if down else nn.Identity()
+        self.down = Downsample(out_ch, out_ch) if is_down else nn.Identity()
 
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
-        x = self.res1(x, t_emb)
-        x = self.res2(x, t_emb)
-        x = self.attn(x)
-        skip = x
+        skips = []
+        # ----------
+        # Residual Blocks / Self-Attention
+        # ----------
+        for res, attn in zip(self.res_blocks, self.attn_blocks):
+            x = res(x, t_emb)
+            x = attn(x)
+            skips.append(x)
+
+        # ----------
+        # Downsample
+        # ----------
         x = self.down(x)
-        return x, skip
+        if self.is_down:
+            skips.append(x)
+
+        return x, skips
 
 
 class Upsample(nn.Module):
@@ -107,39 +142,67 @@ class Upsample(nn.Module):
 
 
 class DecoderBlock(nn.Module):
+    """
+    
+    
+    Args:
+        in_ch (int): 
+        out_ch (int): 
+        skip_ch (int): 
+        t_dim (int): 
+        num_res_blocks (int): 
+        num_heads (int): 
+        is_up (bool): 
+    
+    Returns:
+        x (Tensor): 
+    """
     def __init__(
             self, 
             in_ch: int, 
             out_ch: int, 
-            skip_ch: int, 
+            skip_chs: list[int], 
             t_dim: int, 
+            num_res_blocks: int,
             num_heads: int, 
-            up: bool
+            is_up: bool
     ):
         super().__init__()
         # ----------
-        # Upsampling
-        # ----------
-        self.up = Upsample(in_ch, out_ch) if up else nn.Identity()
-
-        # ----------
         # Residual Blocks
         # ----------
-        res1_in_ch = out_ch + skip_ch
-        self.res1  = ResBlock(res1_in_ch, out_ch, t_dim)
-        self.res2  = ResBlock(out_ch,     out_ch, t_dim)
+        self.res_blocks = nn.ModuleList(
+            [ResBlock(in_ch  + skip_chs[0], out_ch, t_dim)] +
+            [ResBlock(out_ch + skip_chs[i+1], out_ch, t_dim) for i in range(num_res_blocks)]
+        )
 
         # ----------
         # Self-Attention
         # ----------
-        self.attn = SelfAttentionBlock(out_ch, num_heads) if num_heads != 0 else nn.Identity()
+        if num_heads != 0:
+            self.attn_blocks = nn.ModuleList([SelfAttentionBlock(out_ch, num_heads) for _ in range(num_res_blocks + 1)])
+        else:
+            self.attn_blocks = nn.ModuleList([nn.Identity() for _ in range(num_res_blocks + 1)])
 
-    def forward(self, x: torch.Tensor, t_emb: torch.Tensor, skip: torch.Tensor=None) -> torch.Tensor:
+        # ----------
+        # Upsampling
+        # ----------
+        self.up = Upsample(out_ch, out_ch) if is_up else nn.Identity()
+
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor, skips: list[torch.Tensor]) -> torch.Tensor:
+        # ----------
+        # Residual Blocks / Self-Attention
+        # ----------
+        for res, attn, skip in zip(self.res_blocks, self.attn_blocks, skips):
+            x = torch.cat([x, skip], dim=1)
+            x = res(x, t_emb)
+            x = attn(x)
+
+        # ----------
+        # Upsample
+        # ----------
         x = self.up(x)
-        x = torch.cat([x, skip], dim=1) if skip is not None else x
-        x = self.res1(x, t_emb)
-        x = self.res2(x, t_emb)
-        x = self.attn(x)
+
         return x
 
 
@@ -151,13 +214,20 @@ class SelfAttentionBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, c, h, w = x.shape
-        # -- GroupNorm / Flatten
+        
+        # ----------
+        # GroupNorm / Flatten
+        # ----------
         x_norm = self.norm(x)
         x_flat = x_norm.flatten(2).permute(0,2,1)   # (B, H*W, C)
-        # -- Self-Attention
+        
+        # ----------
+        # Self-Attention
+        # ----------
         attn_out, _ = self.attn(x_flat, x_flat, x_flat)
         attn_out = attn_out.permute(0,2,1)          # (B, C, H*W)
         attn_out = attn_out.view(b, c, h, w)        # (B, C, H, W)
+
         return x + attn_out
     
 
@@ -165,7 +235,7 @@ class Bottleneck(nn.Module):
     def __init__(self, in_ch: int, t_dim: int, num_heads: int):
         super().__init__()
         self.res1 = ResBlock(in_ch, in_ch, t_dim)
-        self.attn = SelfAttentionBlock(in_ch, num_heads)
+        self.attn = SelfAttentionBlock(in_ch, num_heads) if num_heads != 0 else nn.Identity()
         self.res2 = ResBlock(in_ch, in_ch, t_dim)
 
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
@@ -196,21 +266,27 @@ class UNet(nn.Module):
     Args:
         in_ch (int): 
         base_ch (int): 
+        num_res_blocks (int): 
         ch_mults (list[int]): 
         enc_heads (list[int]): 
         mid_heads (int): 
+
+    Returns:
+        x (Tensor): 
     """
     def __init__(
             self, 
             in_ch: int=3, 
-            base_ch: int=128, 
-            ch_mults: list[int]=[1,1,2,2,4,4],
-            enc_heads: list[int]=[0,0,0,0,8,8],
-            mid_heads: int=4
+            base_ch: int=128,
+            num_res_blocks: int=2, 
+            ch_mults: list[int]=[1,2,2,2],
+            enc_heads: list[int]=[0,1,0,0],
+            mid_heads: int=1
     ):
         super().__init__()
 
         self.base_ch = base_ch
+        self.num_res_blocks = num_res_blocks
 
         # ----------
         # Time Embedding MLP
@@ -230,24 +306,27 @@ class UNet(nn.Module):
             nn.GroupNorm(32, base_ch),
             nn.SiLU()
         )
+
         # -- Update post-stem in_ch
         in_ch = base_ch
+
+        # -- Track skip channels
+        skip_chs = [base_ch]
 
         # ----------
         # Encoder
         # ----------
-        skip_chs = []
-
         self.encoder = nn.ModuleList()
         for i, (ch_mult, num_heads) in enumerate(zip(ch_mults, enc_heads)):
             # -- No downsampling at final block
             down = (i != len(ch_mults) - 1)
             # -- Compute out_ch based on block's ch_mult
             out_ch = base_ch*ch_mult
+            # -- Store EncoderBlock skip channels
+            enc_skip_chs = [out_ch] * (num_res_blocks + 1) if down else [out_ch] * num_res_blocks
+            skip_chs.extend(enc_skip_chs)
             # -- Initialize EncoderBlock
-            self.encoder.append(EncoderBlock(in_ch, out_ch, t_dim, num_heads, down))
-            # -- Record skip channels (no skip at final block)
-            skip_chs.append(in_ch) if down else skip_chs.append(0)
+            self.encoder.append(EncoderBlock(in_ch, out_ch, t_dim, num_res_blocks, num_heads, down))
             # -- Update in_ch for next EncoderBlock
             in_ch = out_ch
 
@@ -261,14 +340,14 @@ class UNet(nn.Module):
         # ----------
         self.decoder = nn.ModuleList()
         for i, (ch_mult, num_heads) in enumerate(zip(ch_mults[::-1], enc_heads[::-1])):
-            # -- No upsampling at first block
-            up = (i != 0)
-            # -- Compute out_ch based on block's ch_mult
+            # -- No upsampling at last block
+            up = (i != len(ch_mults) - 1)
+            # -- Define out_ch
             out_ch = base_ch*ch_mult
-            # -- Pop skip_ch from matching EncoderBlock
-            skip_ch = skip_chs.pop()
+            # -- Pop DecoderBlock skip channels
+            dec_skip_chs = [skip_chs.pop() for _ in range(num_res_blocks + 1)]
             # -- Initialize DecoderBlock
-            self.decoder.append(DecoderBlock(in_ch, out_ch, skip_ch, t_dim, num_heads, up))
+            self.decoder.append(DecoderBlock(in_ch, out_ch, dec_skip_chs, t_dim, num_res_blocks, num_heads, up))
             # -- Update in_ch for next DecoderBlock
             in_ch = out_ch
 
@@ -287,18 +366,17 @@ class UNet(nn.Module):
         # ----------
         # Stem
         # ----------
+        skips = []
+
         x = self.stem(x)
+        skips.append(x)
 
         # ----------
         # Encoder
         # ----------
-        skips = []
-
-        for i, enc_block in enumerate(self.encoder):
-            x, skip = enc_block(x, t_emb)
-            # -- Store skip connections when downsampling (not last block)
-            if i != len(self.encoder) - 1:
-                skips.append(skip)
+        for enc_block in self.encoder:
+            x, skips_i = enc_block(x, t_emb)
+            skips.extend(skips_i)
 
         # ----------
         # Bottleneck
@@ -308,10 +386,9 @@ class UNet(nn.Module):
         # ----------
         # Decoder
         # ----------
-        for i, dec_block in enumerate(self.decoder):
-            # -- Concatenate skip connections when upsampling (not first block)
-            skip = skips.pop() if i != 0 else None
-            x = dec_block(x, t_emb, skip)
+        for dec_block in self.decoder:
+            skips_i = [skips.pop() for _ in range(self.num_res_blocks + 1)]
+            x = dec_block(x, t_emb, skips_i)
 
         # ----------
         # Final Layer

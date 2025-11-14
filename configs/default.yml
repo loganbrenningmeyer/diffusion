@@ -16,9 +16,10 @@ data:
 # ====================
 model:
   base_ch: 128
-  ch_mults: [1,2,4,4]
-  enc_heads: [0,4,0,0]
-  mid_heads: 4
+  num_res_blocks: 2
+  ch_mults: [1,2,2,2]
+  enc_heads: [0,1,0,0]
+  mid_heads: 1
 
 # ====================
 # Diffusion Parameters
@@ -28,7 +29,7 @@ diffusion:
   beta_1: 1e-4
   beta_T: 0.02
   beta_schedule: "cosine"
-  sampler: "ddim"
+  sampler: "ddpm"
   # -- DDIM Parameters
   n_steps: 50
   eta: 0.0
@@ -37,7 +38,7 @@ diffusion:
 # Training Parameters
 # ====================
 train:
-  run_name: "wandb_test"
+  run_name: "diffusion"
   epochs: 100
   batch_size: 128
   lr: 2e-4

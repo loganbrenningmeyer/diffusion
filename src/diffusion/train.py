@@ -35,14 +35,13 @@ def main():
     # ----------
     in_ch = config.data.in_ch
     base_ch = config.model.base_ch
+    num_res_blocks = config.model.num_res_blocks
     ch_mults = config.model.ch_mults
     enc_heads = config.model.enc_heads
     mid_heads = config.model.mid_heads
 
-    model = UNet(in_ch, base_ch, ch_mults, enc_heads, mid_heads)
+    model = UNet(in_ch, base_ch, num_res_blocks, ch_mults, enc_heads, mid_heads)
     model.to(device)
-
-    print(f"UNet Parameters: {sum(p.numel() for p in model.parameters())}")
 
     # ----------
     # Create Diffusion Utilities Object
@@ -89,7 +88,7 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    os.makedirs('checkpoints/', exist_ok=True)
+    os.makedirs('./checkpoints', exist_ok=True)
 
     trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
     trainer.train(config.train.epochs)
