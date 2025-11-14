@@ -111,14 +111,14 @@ class EncoderBlock(nn.Module):
         # ----------
         self.down = Downsample(out_ch, out_ch) if is_down else nn.Identity()
 
-    def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
         skips = []
         # ----------
         # Residual Blocks / Self-Attention
         # ----------
-        for res, attn in zip(self.res_blocks, self.attn_blocks):
-            x = res(x, t_emb)
-            x = attn(x)
+        for res_block, attn_block in zip(self.res_blocks, self.attn_blocks):
+            x = res_block(x, t_emb)
+            x = attn_block(x)
             skips.append(x)
 
         # ----------
@@ -193,10 +193,10 @@ class DecoderBlock(nn.Module):
         # ----------
         # Residual Blocks / Self-Attention
         # ----------
-        for res, attn, skip in zip(self.res_blocks, self.attn_blocks, skips):
+        for res_block, attn_block, skip in zip(self.res_blocks, self.attn_blocks, skips):
             x = torch.cat([x, skip], dim=1)
-            x = res(x, t_emb)
-            x = attn(x)
+            x = res_block(x, t_emb)
+            x = attn_block(x)
 
         # ----------
         # Upsample
@@ -238,7 +238,7 @@ class Bottleneck(nn.Module):
         self.attn = SelfAttentionBlock(in_ch, num_heads) if num_heads != 0 else nn.Identity()
         self.res2 = ResBlock(in_ch, in_ch, t_dim)
 
-    def forward(self, x: torch.Tensor, t_emb: torch.Tensor):
+    def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
         x = self.res1(x, t_emb)
         x = self.attn(x)
         x = self.res2(x, t_emb)
