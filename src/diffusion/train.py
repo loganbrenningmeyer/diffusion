@@ -87,10 +87,10 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
+    os.makedirs('checkpoints/', exist_ok=True)
 
-    epochs = config.train.epochs
-    trainer.train(epochs)
+    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
+    trainer.train(config.train.epochs)
 
 if __name__ == "__main__":
     main()
