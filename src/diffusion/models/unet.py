@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from diffusion.models.attention import SelfAttentionBlock
 from diffusion.utils.time_embedding import sinusoidal_encoding
 
 
@@ -58,6 +59,16 @@ class Downsample(nn.Module):
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=2, padding=1)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.conv(x)
+    
+
+class Upsample(nn.Module):
+    def __init__(self, in_ch: int, out_ch: int):
+        super().__init__()
+        self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = F.interpolate(x, scale_factor=2, mode='nearest')
         return self.conv(x)
 
 
@@ -131,16 +142,6 @@ class EncoderBlock(nn.Module):
         return x, skips
 
 
-class Upsample(nn.Module):
-    def __init__(self, in_ch: int, out_ch: int):
-        super().__init__()
-        self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
-    
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = F.interpolate(x, scale_factor=2, mode='nearest')
-        return self.conv(x)
-
-
 class DecoderBlock(nn.Module):
     """
     
@@ -204,31 +205,6 @@ class DecoderBlock(nn.Module):
         x = self.up(x)
 
         return x
-
-
-class SelfAttentionBlock(nn.Module):
-    def __init__(self, in_ch: int, num_heads: int):
-        super().__init__()
-        self.norm = nn.GroupNorm(32, in_ch)
-        self.attn = nn.MultiheadAttention(in_ch, num_heads, batch_first=True)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        b, c, h, w = x.shape
-        
-        # ----------
-        # GroupNorm / Flatten
-        # ----------
-        x_norm = self.norm(x)
-        x_flat = x_norm.flatten(2).permute(0,2,1)   # (B, H*W, C)
-        
-        # ----------
-        # Self-Attention
-        # ----------
-        attn_out, _ = self.attn(x_flat, x_flat, x_flat)
-        attn_out = attn_out.permute(0,2,1)          # (B, C, H*W)
-        attn_out = attn_out.view(b, c, h, w)        # (B, C, H, W)
-
-        return x + attn_out
     
 
 class Bottleneck(nn.Module):

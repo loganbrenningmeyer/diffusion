@@ -13,6 +13,7 @@ def sinusoidal_encoding(t: torch.Tensor, dim: int) -> torch.Tensor:
         t_emb (Tensor): Tensor of shape (B, dim) containing sinusoidal time embeddings
     """
     half_dim = dim // 2
+    
     # ----------
     # => k = 0,1,2,\ldots,\frac{d}{2}-1
     # ----------
