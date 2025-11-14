@@ -152,7 +152,7 @@ class Trainer:
         Args:
             label (str): Label for metric on dashboard
             loss (float): Current loss to log on dashboard
-            step (int): Current step of the loss 
+            step (int): Current training step
         """
         wandb.log(
             {
@@ -169,7 +169,7 @@ class Trainer:
         Args:
             label (str): Label for grid of samples on dashboard.
             grid (Tensor): Grid of batch of generated samples of shape (C, H, W)
-            step (int): Current step used to produce samples
+            step (int): Current training step
         """
         wandb.log(
             {
@@ -184,11 +184,19 @@ class Trainer:
         Saves model checkpoint within save_path.
 
         Args:
-            batch (int): Current training batch
+            step (int): Current training step
         """
         ckpt = {
             "model": self.model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "step": step
         }
-        torch.save(ckpt, f"{self.save_path}/model-step{step}.ckpt")
+        ckpt_path = f"{self.save_path}/model-step{step}.ckpt"
+        torch.save(ckpt, ckpt_path)
+
+        artifact = wandb.Artifact(
+            name=f"model-step{step}",
+            type="model"
+        )
+        artifact.add_file(ckpt_path)
+        wandb.log_artifact(artifact)
