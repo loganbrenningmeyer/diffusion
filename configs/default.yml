@@ -29,9 +29,9 @@ diffusion:
   beta_1: 1e-4
   beta_T: 0.02
   beta_schedule: "cosine"
-  sampler: "ddpm"
+  sampler: "ddim"
   # -- DDIM Parameters
-  n_steps: 50
+  n_steps: 100
   eta: 0.0
 
 # ====================
@@ -39,14 +39,14 @@ diffusion:
 # ====================
 train:
   run_name: "diffusion"
-  epochs: 100
+  epochs: 250
   batch_size: 128
   lr: 2e-4
   ema_decay: 0.999
   log_interval: 1
   save_interval: 1000
   save_path: "./checkpoints"
-  num_samples: 4
+  num_samples: 8
 
 # ====================
 # Seed Configuration
