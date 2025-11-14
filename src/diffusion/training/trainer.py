@@ -90,7 +90,7 @@ class Trainer:
                 step += 1
 
                 if step > 0 and step % self.log_interval == 0:
-                    self.log_loss("train/batch_loss", loss.item(), step)
+                    self.log_loss("train/batch_loss", loss.item(), step, epoch)
 
                 if step > 0 and step % self.save_interval == 0:
                     self.save_checkpoint(step)
@@ -99,14 +99,14 @@ class Trainer:
             # Log Average Epoch Loss
             # ----------
             epoch_loss /= num_batches
-            self.log_loss("train/epoch_loss", epoch_loss, step)
+            self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
 
             # ----------
             # Generate Samples / Log Sample Grid
             # ----------
             x = self.diffusion.sample(self.model, self.sample_shape)
             grid = make_sample_grid(x)
-            self.log_grid("samples/grid", grid, step)
+            self.log_grid("samples/grid", grid, step, epoch)
 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -145,7 +145,7 @@ class Trainer:
 
         return loss
     
-    def log_loss(self, label: str, loss: float, step: int):
+    def log_loss(self, label: str, loss: float, step: int, epoch: int):
         """
         Logs loss to wandb dashboard
         
@@ -154,9 +154,15 @@ class Trainer:
             loss (float): Current loss to log on dashboard
             step (int): Current step of the loss 
         """
-        wandb.log({label: loss}, step=step)
+        wandb.log(
+            {
+                label: loss, 
+                "epoch": epoch
+            }, 
+            step=step
+        )
 
-    def log_grid(self, label: str, grid: torch.Tensor, step: int):
+    def log_grid(self, label: str, grid: torch.Tensor, step: int, epoch: int):
         """
         Logs grid of generated samples to wandb dashboard.
         
@@ -165,7 +171,13 @@ class Trainer:
             grid (Tensor): Grid of batch of generated samples of shape (C, H, W)
             step (int): Current step used to produce samples
         """
-        wandb.log({label: wandb.Image(grid)}, step=step)
+        wandb.log(
+            {
+                label: wandb.Image(grid), 
+                "epoch": epoch
+            }, 
+            step=step
+        )
 
     def save_checkpoint(self, step: int):
         """
