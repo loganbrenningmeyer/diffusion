@@ -14,7 +14,7 @@ class SelfAttentionBlock(nn.Module):
         dropout (float): Dropout probability
     
     Returns:
-        x (Tensor): Self-attended output of shape (B, C, H, W)
+        x (torch.Tensor): Self-attended output of shape (B, C, H, W)
     """
     def __init__(
             self, 

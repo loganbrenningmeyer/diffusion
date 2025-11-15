@@ -8,8 +8,8 @@ data:
   image_size: 32
   num_workers: 4
   subset:
-    enable: 0
-    ratio: 0.2
+    enable: 1
+    ratio: 0.0025
 
 # ====================
 # Model Configuration
@@ -31,7 +31,7 @@ diffusion:
   beta_schedule: "cosine"
   sampler: "ddim"
   # -- DDIM Parameters
-  n_steps: 100
+  ddim_steps: 100
   eta: 0.0
 
 # ====================
@@ -43,14 +43,13 @@ train:
   batch_size: 128
   lr: 2e-4
   ema_decay: 0.999
-  log_interval: 1
-  save_interval: 1000
-  save_path: "./checkpoints"
-  num_samples: 8
 
-# ====================
-# Seed Configuration
-# ====================
-rng:
-  global_seed: 42
-  sample_seeds: [1,7,21,42,87,101,2025,9001]
+  logging:
+    log_interval: 1
+    save_interval: 1000
+    save_dir: "./runs"
+
+  sampling:
+    num_samples: 8
+    num_frames: 30
+    fps: 10

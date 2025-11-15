@@ -29,11 +29,13 @@ def main():
     config = load_config(args.config)
 
     # ---------
-    # Create Checkpoints Dir / Save Config
+    # Create Run Dirs / Save Config
     # ----------
-    ckpt_dir = os.path.join('./checkpoints', config.train.run_name)
-    os.makedirs(ckpt_dir, exist_ok=True)
-    save_config(config, os.path.join(ckpt_dir, 'config.yml'))
+    run_dir = os.path.join(config.train.logging.save_dir, config.train.run_name)
+    os.makedirs(os.path.join(run_dir, 'checkpoints'), exist_ok=True)
+    os.makedirs(os.path.join(run_dir, 'figs'), exist_ok=True)
+
+    save_config(config, os.path.join(run_dir, 'config.yml'))
 
     # ----------
     # Set Device
@@ -61,10 +63,10 @@ def main():
     beta_T = config.diffusion.beta_T
     beta_schedule = config.diffusion.beta_schedule
     sampler = config.diffusion.sampler
-    n_steps = config.diffusion.n_steps
+    ddim_steps = config.diffusion.ddim_steps
     eta = config.diffusion.eta
 
-    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, sampler, n_steps, eta, device)
+    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, sampler, ddim_steps, eta, device)
 
     # ----------
     # Define Optimizer

@@ -1,15 +1,17 @@
+import os
 import copy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.optim import Optimizer
+import numpy as np
 from omegaconf import DictConfig
 import wandb
 from tqdm import tqdm
 
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
-from diffusion.utils.visualization import make_sample_grid
+from diffusion.utils.visualization import make_sample_grid, make_sample_video
 
 
 class Trainer:
@@ -47,21 +49,25 @@ class Trainer:
         self.dataloader = dataloader
         self.device = device
 
-        # -- Training Parameters
-        self.ema_decay = train_config.ema_decay
-        self.log_interval = train_config.log_interval
-        self.save_interval = train_config.save_interval
-        self.save_path = train_config.save_path
+        # -- Logging Parameters
+        self.log_interval = train_config.logging.log_interval
+        self.save_interval = train_config.logging.save_interval
+        self.save_dir = train_config.logging.save_dir
+        self.run_name = train_config.run_name
 
         # -- Sampling Parameters
+        num_samples = train_config.sampling.num_samples
         in_ch = data_config.in_ch
         image_size = data_config.image_size
-        num_samples = train_config.num_samples
         self.sample_shape = (num_samples, in_ch, image_size, image_size)
+        self.num_frames = train_config.sampling.num_frames
+        self.fps = train_config.sampling.fps
 
         # ----------
         # Initialize EMA Model
         # ----------
+        self.ema_decay = train_config.ema_decay
+
         self.ema_model = copy.deepcopy(model)
         for p in self.ema_model.parameters():
             p.requires_grad_(False)
@@ -113,11 +119,15 @@ class Trainer:
             self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
 
             # ----------
-            # Generate Samples / Log Sample Grid
+            # Generate Sample Frames / Log Sample Grids
             # ----------
-            x = self.diffusion.sample(self.ema_model, self.sample_shape)
-            
-            grid = make_sample_grid(x)
+            frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
+            samples = frames[-1]    # final frame is output sample
+
+            grid_frames = make_sample_video(frames, os.path.join(self.save_dir, self.run_name, "figs", f"video-epoch{epoch}.mp4"))
+            grid = make_sample_grid(samples, os.path.join(self.save_dir, self.run_name, "figs", f"grid-epoch{epoch}.png"))
+
+            self.log_video("samples/video", grid_frames, step, epoch)
             self.log_grid("samples/grid", grid, step, epoch)
 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
@@ -125,10 +135,10 @@ class Trainer:
         Performs a single forward pass / update on the input batch
         
         Parameters:
-            x (Tensor): Batch of input images of shape (B, C, H, W)
+            x (torch.Tensor): Batch of input images of shape (B, C, H, W)
         
         Returns:
-            loss (Tensor): Mean squared error loss of predicted noise and true noise
+            loss (torch.Tensor): Mean squared error loss of predicted noise and true noise
         """
         self.optimizer.zero_grad()
 
@@ -186,13 +196,35 @@ class Trainer:
             step=step
         )
 
-    def log_grid(self, label: str, grid: torch.Tensor, step: int, epoch: int):
+    def log_video(self, label: str, frames: list[np.ndarray], step: int, epoch: int):
+        """
+        
+        
+        Args:
+            label (str): Label for grid of samples on dashboard.
+            frames (list[np.ndarray]): Grid frames of batch of generated samples each of shape (C, H, W)
+            step (int): Current training step
+        
+        Returns:
+        
+        """
+        frames = np.stack(frames)
+
+        wandb.log(
+            {
+                label: wandb.Video(frames, fps=self.fps, format="mp4"),
+                "epoch": epoch
+            },
+            step=step
+        )
+
+    def log_grid(self, label: str, grid: np.ndarray, step: int, epoch: int):
         """
         Logs grid of generated samples to wandb dashboard.
         
         Args:
             label (str): Label for grid of samples on dashboard.
-            grid (Tensor): Grid of batch of generated samples of shape (C, H, W)
+            grid (np.ndarray): Grid of batch of generated samples of shape (C, H, W)
             step (int): Current training step
         """
         wandb.log(
@@ -205,12 +237,12 @@ class Trainer:
 
     def save_checkpoint(self, step: int):
         """
-        Saves model checkpoint within save_path.
+        Saves model checkpoint within save_dir/checkpoints.
 
         Args:
             step (int): Current training step
         """
-        ckpt_path = f"{self.save_path}/model-step{step}.ckpt"
+        ckpt_path = os.path.join(self.save_dir, self.run_name, "checkpoints", f"model-step{step}.ckpt")
         torch.save({
             "model": self.model.state_dict(), 
             "ema_model": self.ema_model.state_dict(),

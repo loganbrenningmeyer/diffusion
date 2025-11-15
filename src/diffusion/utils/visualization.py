@@ -1,68 +1,60 @@
-import os
-import imageio
-import numpy as np
 import torch
+import imageio.v3 as iio
 from torchvision.utils import make_grid
 
 
-def make_sample_grid(x: torch.Tensor):
+def make_sample_grid(samples: torch.Tensor, save_path: str=None):
     """
     Creates a grid of generated samples for visualization.
     
     Args:
-        x (Tensor): Tensor of generated samples of shape (B, C, H, W) in [-1,1]
+        samples (torch.Tensor): Tensor of generated samples of shape (B, C, H, W) in [-1,1]
     
     Returns:
-        grid (Tensor): Tensor image of sample grid
+        grid (torch.Tensor): Tensor image of sample grid
     """
     # ----------
-    # Convert x [-1,1] -> [0,1] / Create Grid
+    # Convert samples [-1, 1] -> [0, 1] / Create Grid
     # ----------
-    x = x * 0.5 + 0.5
-    x = x.clamp(0.0, 1.0)
+    samples = samples * 0.5 + 0.5
+    samples = samples.clamp(0, 1)
     
-    grid = make_grid(x, pad_value=1.0).cpu()
+    grid = make_grid(samples, pad_value=1.0)
+    
+    # ----------
+    # Convert grid [0, 1] -> [0, 255] / (C, H, W) -> (H, W, C)
+    # ----------
+    grid = (grid * 255).clamp(0, 255).to(torch.uint8)
+    grid = grid.permute(1, 2, 0).cpu().numpy()
+
+    # ----------
+    # Save grid image
+    # ----------
+    if save_path:
+        iio.imwrite(save_path, grid)
     
     return grid
 
-def make_sample_video(X: torch.Tensor, save_dir: str):
+def make_sample_video(frames: list[torch.Tensor], save_path: str=None):
     """
     
     
     Args:
-        X (Tensor): Tensor of samples over timesteps of shape (B, T, C, H, W)
-        save_dir (str): Save directory for mp4 video
+        frames (list[torch.Tensor]): List of frames of sample Tensors each of shape (B, C, H, W)
+        save_path (str): Save path for mp4 video
 
     Returns:
         save_paths (list[str]): List of video save paths
     """
-    os.makedirs(save_dir, exist_ok=True)
+    # ----------
+    # Convert frames to grid images
+    # ----------
+    grid_frames = [make_sample_grid(frame) for frame in frames]
 
-    save_paths = []
+    # ----------
+    # Save MP4
+    # ----------
+    if save_path:
+        iio.imwrite(save_path, grid_frames, fps=10, codec="libx264")
 
-    for i, x in enumerate(X):
-        # ----------
-        # Create imageio writer
-        # ----------
-        save_path = os.path.join(save_dir, f'sample_{i}.mp4')
-        writer = imageio.get_writer(save_path, fps=24, codec='libx264', format='FFMPEG')
-        save_paths.append(save_path)
-
-        # ----------
-        # Permute dimensions
-        # ----------
-        x = x.detach().cpu()
-        x = x.permute(0, 2, 3, 1)   # (T, H, W, C)
-
-        for x_t in x:
-            # ----------
-            # Convert x_t [-1,1] -> [0,255]
-            # ----------
-            x_t = (x_t * 0.5 + 0.5) * 255
-            x_t = x_t.clamp(0, 255).numpy().astype(np.uint8)
-
-            writer.append_data(x_t)
-
-        writer.close()
-
-    return save_paths
+    return grid_frames

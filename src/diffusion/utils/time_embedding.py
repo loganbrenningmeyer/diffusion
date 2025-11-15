@@ -6,11 +6,11 @@ def sinusoidal_encoding(t: torch.Tensor, dim: int) -> torch.Tensor:
     Computes sinusoidal time encodings for t timesteps with dim dimensionality.
     
     Args:
-        t (Tensor): Tensor of shape (B,) containing integer timesteps
+        t (torch.Tensor): Tensor of shape (B,) containing integer timesteps
         dim (int): Dimensionality of the time embedding
     
     Returns:
-        t_emb (Tensor): Tensor of shape (B, dim) containing sinusoidal time embeddings
+        t_emb (torch.Tensor): Tensor of shape (B, dim) containing sinusoidal time embeddings
     """
     half_dim = dim // 2
     

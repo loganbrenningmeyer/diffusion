@@ -156,7 +156,7 @@ class DecoderBlock(nn.Module):
         is_up (bool): 
     
     Returns:
-        x (Tensor): 
+        x (torch.Tensor): 
     """
     def __init__(
             self, 
