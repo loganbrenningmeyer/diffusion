@@ -1,2 +1,4 @@
 set -ex
-python -m diffusion.test --config configs/default.yml
+
+CONFIG=$1
+python -m diffusion.test --config "$CONFIG"
