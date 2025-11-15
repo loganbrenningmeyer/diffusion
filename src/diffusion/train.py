@@ -2,7 +2,7 @@ import os
 import argparse
 import torch
 from torch.utils.data import DataLoader
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 import wandb
 
 from diffusion.data.datasets import load_dataset
@@ -11,9 +11,12 @@ from diffusion.diffusion import Diffusion
 from diffusion.training.trainer import Trainer
 
 
-def load_config(config_path):
+def load_config(config_path: str) -> DictConfig:
     config = OmegaConf.load(config_path)
     return config
+
+def save_config(config: DictConfig, save_path: str):
+    OmegaConf.save(config, save_path)
 
 def main():
     # ----------
@@ -24,6 +27,13 @@ def main():
     args = parser.parse_args()
 
     config = load_config(args.config)
+
+    # ---------
+    # Create Checkpoints Dir / Save Config
+    # ----------
+    ckpt_dir = os.path.join('./checkpoints', config.train.run_name)
+    os.makedirs(ckpt_dir, exist_ok=True)
+    save_config(config, os.path.join(ckpt_dir, 'config.yml'))
 
     # ----------
     # Set Device
@@ -59,9 +69,7 @@ def main():
     # ----------
     # Define Optimizer
     # ----------
-    lr = config.train.lr
-
-    optimizer = torch.optim.Adam(model.parameters(), lr)
+    optimizer = torch.optim.Adam(model.parameters(), config.train.lr)
 
     # ----------
     # Create DataLoader
@@ -88,8 +96,6 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    os.makedirs('./checkpoints', exist_ok=True)
-
     trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
     trainer.train(config.train.epochs)
 
