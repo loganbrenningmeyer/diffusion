@@ -1,5 +1,7 @@
 name: diffusion
 channels:
+  - pytorch
+  - nvidia
   - conda-forge
   - defaults
 
@@ -9,6 +11,10 @@ dependencies:
   - setuptools
   - wheel
   - pyyaml
+  - pytorch
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1
   
   - pip:
     - -e .
