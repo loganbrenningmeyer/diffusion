@@ -35,6 +35,10 @@ class ResBlock(nn.Module):
         self.conv1 = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1)
 
+        # -- Initialize conv2 to zeros
+        nn.init.zeros_(self.conv2.weight)
+        nn.init.zeros_(self.conv2.bias)
+
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
         skip = self.skip(x)
 
@@ -227,6 +231,10 @@ class FinalLayer(nn.Module):
         self.norm = nn.GroupNorm(32, in_ch)
         self.act  = nn.SiLU()
         self.conv = nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1)
+
+        # -- Initialize conv to zeros
+        nn.init.zeros_(self.conv.weight)
+        nn.init.zeros_(self.conv.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.norm(x)

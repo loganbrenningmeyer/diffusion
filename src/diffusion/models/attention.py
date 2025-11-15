@@ -37,6 +37,10 @@ class SelfAttentionBlock(nn.Module):
         self.W_v = nn.Linear(in_ch, in_ch)
         self.W_o = nn.Linear(in_ch, in_ch)
 
+        # -- Initialize output projection to zeros
+        nn.init.zeros_(self.W_o.weight)
+        nn.init.zeros_(self.W_o.bias)
+
         # ----------
         # Dropout
         # ----------
