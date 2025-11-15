@@ -1,3 +1,4 @@
+import copy
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -58,6 +59,14 @@ class Trainer:
         num_samples = train_config.num_samples
         self.sample_shape = (num_samples, in_ch, image_size, image_size)
 
+        # ----------
+        # Initialize EMA Model
+        # ----------
+        self.ema_model = copy.deepcopy(model)
+        for p in self.ema_model.parameters():
+            p.requires_grad_(False)
+        self.ema_model.eval()
+
     def train(self, epochs: int):
         """
         Trains the UNet model for the specified epochs and logs losses.
@@ -68,6 +77,8 @@ class Trainer:
         step = 0
 
         for epoch in range(epochs):
+            self.model.train()
+
             # ----------
             # Run Training Epoch
             # ----------
@@ -104,7 +115,8 @@ class Trainer:
             # ----------
             # Generate Samples / Log Sample Grid
             # ----------
-            x = self.diffusion.sample(self.model, self.sample_shape)
+            x = self.diffusion.sample(self.ema_model, self.sample_shape)
+            
             grid = make_sample_grid(x)
             self.log_grid("samples/grid", grid, step, epoch)
 
@@ -142,8 +154,20 @@ class Trainer:
         loss = F.mse_loss(eps_pred, eps_true)
         loss.backward()
         self.optimizer.step()
+        self.update_ema()
 
         return loss
+    
+    @torch.no_grad()
+    def update_ema(self):
+        """
+        Updates EMA model using exponential moving average of the 
+        base model with ema_decay
+            - ema_model = decay * ema_model + (1 - decay) * model
+        """
+        decay = self.ema_decay
+        for p_ema, p_model in zip(self.ema_model.parameters(), self.model.parameters()):
+            p_ema.mul_(decay).add_(p_model, alpha=1 - decay)
     
     def log_loss(self, label: str, loss: float, step: int, epoch: int):
         """
@@ -186,13 +210,13 @@ class Trainer:
         Args:
             step (int): Current training step
         """
-        ckpt = {
-            "model": self.model.state_dict(),
+        ckpt_path = f"{self.save_path}/model-step{step}.ckpt"
+        torch.save({
+            "model": self.model.state_dict(), 
+            "ema_model": self.ema_model.state_dict(),
             "optimizer": self.optimizer.state_dict(),
             "step": step
-        }
-        ckpt_path = f"{self.save_path}/model-step{step}.ckpt"
-        torch.save(ckpt, ckpt_path)
+        }, ckpt_path)
 
         artifact = wandb.Artifact(
             name=f"model-step{step}",
