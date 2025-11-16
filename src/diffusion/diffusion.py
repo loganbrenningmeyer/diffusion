@@ -1,5 +1,5 @@
 import torch
-import numpy as np
+from tqdm import tqdm
 
 from diffusion.models.unet import UNet
 
@@ -23,6 +23,7 @@ class Diffusion:
             beta_1: float, 
             beta_T: float, 
             beta_schedule: str, 
+            pred_param: str,
             sampler: str,
             ddim_steps: int,
             eta: float,
@@ -32,6 +33,7 @@ class Diffusion:
         self.beta_1 = beta_1
         self.beta_T = beta_T
         self.beta_schedule = beta_schedule
+        self.pred_param = pred_param
         self.sampler = sampler
         self.ddim_steps = ddim_steps
         self.eta = eta
@@ -70,7 +72,12 @@ class Diffusion:
         
         Returns:
             x_t (torch.Tensor): Batch of noised images of shape (B, C, H, W)
-            eps (torch.Tensor): Batch of added Gaussian noise of shape (B, C, H, W)
+            target (torch.Tensor): The training target at timestep t of shape (B, C, H, W)
+                - if pred_param == "eps": 
+                    Returns eps (Gaussian noise added to x_0)
+                - if pred_param == "v":
+                    Returns v_t (v-parameterization):
+                        v_t = sqrt(alpha_bar_t) * eps - sqrt(1 - alpha_bar_t) * x_0
         """
         # ----------
         # Sample Gaussian noise
@@ -86,7 +93,18 @@ class Diffusion:
         alpha_bar_t = self.alpha_bars[t][:, None, None, None]
         x_t = torch.sqrt(alpha_bar_t) * x_0 + torch.sqrt(1 - alpha_bar_t) * eps
 
-        return x_t, eps
+        # ----------
+        # eps-prediction
+        # ----------
+        if self.pred_param == "eps":
+            return x_t, eps
+        # ----------
+        # v-prediction
+        # => v_t = \sqrt{\bar\alpha_t}\epsilon - \sqrt{1 - \bar\alpha_t}x_0
+        # ----------
+        elif self.pred_param == "v":
+            v_t = torch.sqrt(alpha_bar_t) * eps - torch.sqrt(1 - alpha_bar_t) * x_0
+            return x_t, v_t
     
     def sample_image(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
         """
@@ -157,7 +175,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise t = T -> 1
         # ----------
-        for t_i in range(self.T, 0, -1):
+        for t_i in tqdm(range(self.T, 0, -1), desc="(DDPM) Sampling Images..."):
             # ----------
             # Create t batch Tensor
             # ----------
@@ -197,7 +215,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise: t = [T...1]
         # ----------
-        for t_i in range(self.T, 0, -1):
+        for t_i in tqdm(range(self.T, 0, -1), desc="(DDPM) Sampling Frames..."):
             # ----------
             # Create t batch Tensor
             # ----------
@@ -243,7 +261,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise t = T->1
         # ----------
-        for i, t_i in enumerate(t_vals):
+        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Images..."):
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
@@ -298,7 +316,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise t = T->1
         # ----------
-        for i, t_i in enumerate(t_vals):
+        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Frames..."):
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
@@ -341,15 +359,17 @@ class Diffusion:
         
         
         Args:
-        
+            model (UNet): Diffusion UNet (predicts either epsilon or v)
+            x_t (torch.Tensor): Noised batch of samples at timestep t of shape (B, C, H, W)
+            t (torch.Tensor): Batch of timesteps of shape (B,)
         
         Returns:
-        
+            x_tm1 (torch.Tensor): Predicted denoised sample at previous timestep of shape (B, C, H, W)
         """
         # ----------
-        # Forward Pass
+        # Predict Noise
         # ----------
-        eps_theta = model(x_t, t)
+        eps_theta = self._pred_eps(model, x_t, t)
 
         # ----------
         # Compute estimated posterior mean
@@ -376,9 +396,9 @@ class Diffusion:
         t_i = t[0].item()
         eps = torch.randn_like(x_t) if t_i > 1 else torch.zeros_like(x_t)
 
-        x_t = mu_theta + torch.sqrt(beta_tilde) * eps
+        x_tm1 = mu_theta + torch.sqrt(beta_tilde) * eps
 
-        return x_t
+        return x_tm1
 
     @torch.no_grad()
     def _ddim_step(self, model: UNet, x_t: torch.Tensor, t: torch.Tensor, t_prev: torch.Tensor):
@@ -386,15 +406,18 @@ class Diffusion:
         
         
         Args:
-        
+            model (UNet): Diffusion UNet (predicts either epsilon or v)
+            x_t (torch.Tensor): Noised batch of samples at timestep t of shape (B, C, H, W)
+            t (torch.Tensor): Batch of timesteps of shape (B,)
         
         Returns:
-        
+            x_tm1 (torch.Tensor): Predicted denoised sample at previous timestep of shape (B, C, H, W)
+            x_0 (torch.Tensor): Predicted clean sample of shape (B, C, H, W)
         """
         # ----------
-        # Forward Pass
+        # Predict Noise
         # ----------
-        eps_theta = model(x_t, t)
+        eps_theta = self._pred_eps(model, x_t, t)
 
         # ----------
         # Compute estimated clean x_0
@@ -418,9 +441,38 @@ class Diffusion:
         # ----------
         z = torch.randn_like(x_t) if self.eta != 0 else torch.zeros_like(x_t)
 
-        x_t = torch.sqrt(alpha_bar_prev) * x_0 + torch.sqrt(1 - alpha_bar_prev - sigma_t**2) * eps_theta + sigma_t * z
+        x_tm1 = torch.sqrt(alpha_bar_prev) * x_0 + torch.sqrt(1 - alpha_bar_prev - sigma_t**2) * eps_theta + sigma_t * z
 
-        return x_t, x_0
+        return x_tm1, x_0
+    
+    def _pred_eps(self, model: torch.Tensor, x_t: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
+        """
+        
+        
+        Args:
+            model (UNet): Diffusion UNet (predicts either epsilon or v)
+            x_t (torch.Tensor): Noised batch of samples at timestep t of shape (B, C, H, W)
+            t (torch.Tensor): Batch of timesteps of shape (B,)
+        
+        Returns:
+            eps_theta (torch.Tensor): Predicted noise at timestep t
+        """
+        # ----------
+        # eps-prediction model
+        # ----------
+        if self.pred_param == "eps":
+            return model(x_t, t)
+        
+        # ----------
+        # v-prediction model
+        # => \epsilon_\theta(x_t,t) = \sqrt{1 - \bar\alpha_t}x_t + \sqrt{\bar\alpha_t}v_\theta(x_t,t)
+        # ----------
+        elif self.pred_param == "v":
+            v_theta = model(x_t, t)
+            alpha_bar_t = self.alpha_bars[t][:, None, None, None]
+            eps_theta = torch.sqrt(1 - alpha_bar_t) * x_t + torch.sqrt(alpha_bar_t) * v_theta
+
+            return eps_theta
     
     def _make_betas(self) -> torch.Tensor:
         """

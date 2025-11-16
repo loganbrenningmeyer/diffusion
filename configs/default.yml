@@ -29,6 +29,7 @@ diffusion:
   beta_1: 1e-4              # (linear schedule): Initial beta value
   beta_T: 0.02              # (linear schedule): Final beta value
   beta_schedule: "cosine"   # Training beta schedule ("linear" or "cosine")
+  pred_param: "eps"         # Training target parameterization ("eps" or "v")
   sampler: "ddpm"           # Sampling generation strategy ("ddpm" or "ddim")
   # -- DDIM Parameters
   ddim_steps: 100           # Number of DDIM sampling substeps

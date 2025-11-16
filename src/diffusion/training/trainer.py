@@ -8,6 +8,7 @@ import numpy as np
 from omegaconf import DictConfig
 import wandb
 from tqdm import tqdm
+from torchvision.utils import make_grid, save_image
 
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
@@ -139,6 +140,8 @@ class Trainer:
             epoch_loss /= num_batches
             self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
 
+            self.test_sampling()
+
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
         Performs a single forward pass / updates the base model and EMA model.
@@ -160,17 +163,17 @@ class Trainer:
         # ----------
         # Apply Noise
         # ----------
-        x_t, eps_true = self.diffusion.forward_noise(x, t)
+        x_t, target = self.diffusion.forward_noise(x, t)
 
         # ----------
         # Forward Pass
         # ----------
-        eps_pred = self.model(x_t, t)
+        pred = self.model(x_t, t)
 
         # ----------
         # Compute Loss / Update
         # ----------
-        loss = F.mse_loss(eps_pred, eps_true)
+        loss = F.mse_loss(pred, target)
         loss.backward()
         self.optimizer.step()
         self.update_ema()
