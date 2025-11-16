@@ -2,54 +2,55 @@
 # Dataset Configuration
 # ====================
 data:
-  name: "cifar10"
-  path: "./datasets"
-  in_ch: 3
-  image_size: 32
-  num_workers: 4
+  name: "cifar10"       # Name of training dataset 
+  path: "./datasets"    # Dataset local save path
+  in_ch: 3              # Sample channel count
+  image_size: 32        # Sample resolution (assumes square images)
+  num_workers: 4        # Number of DataLoader workers
   subset:
-    enable: 1
-    ratio: 0.0025
+    enable: 1           # Use subset of dataset
+    ratio: 0.0025       # Subset fraction of full dataset
 
 # ====================
 # Model Configuration
 # ====================
 model:
-  base_ch: 128
-  num_res_blocks: 2
-  ch_mults: [1,2,2,2]
-  enc_heads: [0,1,0,0]
-  mid_heads: 1
+  base_ch: 128            # Base channel width of UNet
+  num_res_blocks: 2       # Number of ResBlocks in each encoder layer
+  ch_mults: [1,2,2,2]     # base_ch multipliers for each encoder layer
+  enc_heads: [0,1,0,0]    # Number of attention heads in each encoder layer
+  mid_heads: 1            # Number of attention heads in the bottleneck
 
 # ====================
 # Diffusion Parameters
 # ====================
 diffusion:
-  T: 1000
-  beta_1: 1e-4
-  beta_T: 0.02
-  beta_schedule: "cosine"
-  sampler: "ddim"
+  T: 1000                   # Total number of diffusion timesteps
+  beta_1: 1e-4              # (linear schedule): Initial beta value
+  beta_T: 0.02              # (linear schedule): Final beta value
+  beta_schedule: "cosine"   # Training beta schedule ("linear" or "cosine")
+  sampler: "ddpm"           # Sampling generation strategy ("ddpm" or "ddim")
   # -- DDIM Parameters
-  ddim_steps: 100
-  eta: 0.0
+  ddim_steps: 100           # Number of DDIM sampling substeps
+  eta: 0.0                  # DDIM eta factor to control stochasticity
 
 # ====================
 # Training Parameters
 # ====================
 train:
-  run_name: "diffusion_vis_test"
-  epochs: 1
-  batch_size: 128
-  lr: 2e-4
-  ema_decay: 0.9999
+  run_name: "diffusion_test"    # Run name for wandb / save directory
+  epochs: 1                     # Number of training epochs
+  batch_size: 128               # Training batch size 
+  lr: 2e-4                      # Learning rate
+  ema_decay: 0.9999             # Exponential moving average decay
 
   logging:
-    log_interval: 1
-    save_interval: 1
-    save_dir: "./runs"
+    log_interval: 1         # Wandb logging step interval
+    ckpt_interval: 10000    # Model checkpointing step interval
+    sample_interval: 1      # Sample generation step interval
+    save_dir: "./runs"      # Directory to save training run files
 
   sampling:
-    num_samples: 8
-    num_frames: 30
-    fps: 10
+    num_samples: 8    # Number of generated samples
+    num_frames: 30    # Number of sample video frames
+    fps: 10           # FPS of sample videos

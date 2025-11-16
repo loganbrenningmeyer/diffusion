@@ -69,7 +69,7 @@ def main():
     diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, sampler, ddim_steps, eta, device)
 
     # ----------
-    # Define Optimizer
+    # Define Optimizer / Scheduler
     # ----------
     optimizer = torch.optim.Adam(model.parameters(), config.train.lr)
 

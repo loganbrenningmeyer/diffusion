@@ -51,7 +51,8 @@ class Trainer:
 
         # -- Logging Parameters
         self.log_interval = train_config.logging.log_interval
-        self.save_interval = train_config.logging.save_interval
+        self.ckpt_interval = train_config.logging.ckpt_interval
+        self.sample_interval = train_config.logging.sample_interval
         self.save_dir = train_config.logging.save_dir
         self.run_name = train_config.run_name
 
@@ -109,18 +110,24 @@ class Trainer:
                     self.log_loss("train/batch_loss", loss.item(), step, epoch)
 
                 # ----------
-                # Save Checkpoint / Generate Samples
+                # Save Checkpoint
                 # ----------
-                if step > 0 and step % self.save_interval == 0:
+                if step > 0 and step % self.ckpt_interval == 0:
                     self.save_checkpoint(step)
-
+                
+                # ----------
+                # Log Samples / Sample Stats
+                # ----------
+                if step > 0 and step % self.sample_interval == 0:
                     frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
                     samples = frames[-1]    # final frame is output sample
 
-                    video_path = os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4")
-                    video_frames = make_sample_video(frames, self.fps, video_path)
+                    self.log_sample_stats("sample_stats", samples, step, epoch)
 
+                    video_path = os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4")
                     image_path = os.path.join(self.save_dir, self.run_name, "figs", f"grid-step{step}.png")
+                    
+                    video_frames = make_sample_video(frames, self.fps, video_path)
                     image = make_sample_image(samples, image_path)
 
                     self.log_video("samples/video", video_frames, step, epoch)
@@ -134,7 +141,7 @@ class Trainer:
 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
-        Performs a single forward pass / update on the input batch
+        Performs a single forward pass / updates the base model and EMA model.
         
         Parameters:
             x (torch.Tensor): Batch of input images of shape (B, C, H, W)
@@ -206,6 +213,7 @@ class Trainer:
             label (str): Label for grid of samples on dashboard.
             video_frames (list[np.ndarray]): List of frame images of generated samples, each of shape (C, H, W)
             step (int): Current training step
+            epoch (int): Current training epoch
         """
         video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
         video_frames = np.transpose(video_frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
@@ -232,6 +240,28 @@ class Trainer:
                 label: wandb.Image(image), 
                 "epoch": epoch
             }, 
+            step=step
+        )
+
+    def log_sample_stats(self, label: str, samples: torch.Tensor, step: int, epoch: int):
+        """
+        Logs mean/std of generated samples to wandb dashboard.
+        
+        Args:
+            label (str): Label for grid of samples on dashboard.
+            samples (torch.Tensor): Batch of generated samples of shape (B, C, H, W)
+            step (int): Current training step
+            epoch (int): Current training epoch
+        """
+        s_mean = samples.mean().item()
+        s_std  = samples.std().item()
+        
+        wandb.log(
+            {
+                label + "/mean": s_mean,
+                label + "/std": s_std,
+                "epoch": epoch
+            },
             step=step
         )
 
