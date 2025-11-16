@@ -3,3 +3,4 @@ __pycache__/
 diffusion.egg-info/
 runs/
 wandb/
+.DS_Store
