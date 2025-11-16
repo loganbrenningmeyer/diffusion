@@ -1,17 +1,18 @@
 import torch
+import numpy as np
 import imageio.v3 as iio
 from torchvision.utils import make_grid
 
 
-def make_sample_grid(samples: torch.Tensor, save_path: str=None):
+def make_sample_grid(samples: torch.Tensor, save_path: str=None) -> np.ndarray:
     """
-    Creates a grid of generated samples for visualization.
+    Creates a grid image of a batch of generated samples.
     
     Args:
         samples (torch.Tensor): Tensor of generated samples of shape (B, C, H, W) in [-1,1]
     
     Returns:
-        grid (torch.Tensor): Tensor image of sample grid
+        grid (np.ndarray): Image of sample grid
     """
     # ----------
     # Convert samples [-1, 1] -> [0, 1] / Create Grid
@@ -35,16 +36,16 @@ def make_sample_grid(samples: torch.Tensor, save_path: str=None):
     
     return grid
 
-def make_sample_video(frames: list[torch.Tensor], save_path: str=None):
+def make_sample_video(frames: list[torch.Tensor], save_path: str=None) -> list[np.ndarray]:
     """
-    
+    Creates a video of a batch of generated sample trajectories.
     
     Args:
         frames (list[torch.Tensor]): List of frames of sample Tensors each of shape (B, C, H, W)
         save_path (str): Save path for mp4 video
 
     Returns:
-        save_paths (list[str]): List of video save paths
+        grid_frames (list[np.ndarray]): List of video frames
     """
     # ----------
     # Convert frames to grid images

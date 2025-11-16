@@ -99,36 +99,35 @@ class Trainer:
                 loss = self.train_step(x)
 
                 epoch_loss += loss.item()
-
-                # ----------
-                # Log Batch Loss / Save Checkpoint
-                # ----------
                 num_batches += 1
                 step += 1
 
+                # ----------
+                # Log Batch Loss
+                # ----------
                 if step > 0 and step % self.log_interval == 0:
                     self.log_loss("train/batch_loss", loss.item(), step, epoch)
 
+                # ----------
+                # Save Checkpoint / Generate Samples
+                # ----------
                 if step > 0 and step % self.save_interval == 0:
                     self.save_checkpoint(step)
+
+                    frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
+                    samples = frames[-1]    # final frame is output sample
+
+                    grid_frames = make_sample_video(frames, os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4"))
+                    grid = make_sample_grid(samples, os.path.join(self.save_dir, self.run_name, "figs", f"grid-step{step}.png"))
+
+                    self.log_video("samples/video", grid_frames, step, epoch)
+                    self.log_grid("samples/grid", grid, step, epoch)
 
             # ----------
             # Log Average Epoch Loss
             # ----------
             epoch_loss /= num_batches
             self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
-
-            # ----------
-            # Generate Sample Frames / Log Sample Grids
-            # ----------
-            frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
-            samples = frames[-1]    # final frame is output sample
-
-            grid_frames = make_sample_video(frames, os.path.join(self.save_dir, self.run_name, "figs", f"video-epoch{epoch}.mp4"))
-            grid = make_sample_grid(samples, os.path.join(self.save_dir, self.run_name, "figs", f"grid-epoch{epoch}.png"))
-
-            self.log_video("samples/video", grid_frames, step, epoch)
-            self.log_grid("samples/grid", grid, step, epoch)
 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
@@ -208,7 +207,8 @@ class Trainer:
         Returns:
         
         """
-        frames = np.stack(frames)
+        frames = np.stack(frames, axis=0)           # (T, H, W, C)
+        frames = np.transpose(frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
 
         wandb.log(
             {
