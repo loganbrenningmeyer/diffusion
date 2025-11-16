@@ -71,13 +71,9 @@ class Diffusion:
             t (torch.Tensor): Tensor of timesteps in [1,T] of shape (B,)
         
         Returns:
-            x_t (torch.Tensor): Batch of noised images of shape (B, C, H, W)
             target (torch.Tensor): The training target at timestep t of shape (B, C, H, W)
-                - if pred_param == "eps": 
-                    Returns eps (Gaussian noise added to x_0)
-                - if pred_param == "v":
-                    Returns v_t (v-parameterization):
-                        v_t = sqrt(alpha_bar_t) * eps - sqrt(1 - alpha_bar_t) * x_0
+            - `if pred_param == "eps"`: returns `eps` (Gaussian noise added to x_0)
+            - `if pred_param == "v"`: returns `v_t` (v-parameterization)
         """
         # ----------
         # Sample Gaussian noise

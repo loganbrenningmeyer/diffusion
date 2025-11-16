@@ -140,8 +140,6 @@ class Trainer:
             epoch_loss /= num_batches
             self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
 
-            self.test_sampling()
-
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """
         Performs a single forward pass / updates the base model and EMA model.
