@@ -88,6 +88,7 @@ class Diffusion:
         # ----------
         if self.pred_param == "eps":
             return x_t, eps
+        
         # ----------
         # v-prediction
         # => v_t = \sqrt{\bar\alpha_t}\epsilon - \sqrt{1 - \bar\alpha_t}x_0
@@ -301,7 +302,7 @@ class Diffusion:
         # ----------
         frames = [x_t.cpu()]
         indices = [round(i * (self.ddim_steps - 1) / (num_frames - 1)) for i in range(num_frames)]
-        frame_ts = set([t_vals[i] for i in indices][1:])   # {1...T} \ T
+        frame_ts = set([t_vals[i] for i in indices][1:])   # {T...1} \ T
 
         # ----------
         # Iteratively Denoise t = T->1
