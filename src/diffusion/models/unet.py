@@ -244,20 +244,6 @@ class FinalLayer(nn.Module):
 
 
 class UNet(nn.Module):
-    """
-
-    
-    Args:
-        in_ch (int): 
-        base_ch (int): 
-        num_res_blocks (int): 
-        ch_mults (list[int]): 
-        enc_heads (list[int]): 
-        mid_heads (int): 
-
-    Returns:
-        x (Tensor): 
-    """
     def __init__(
             self, 
             in_ch: int=3, 
@@ -267,6 +253,18 @@ class UNet(nn.Module):
             enc_heads: list[int]=[0,1,0,0],
             mid_heads: int=1
     ):
+        """
+        Diffusion UNet model based on the original DDPM tensorflow
+        implementation. 
+        
+        Args:
+            in_ch (int): Number of channels of input samples
+            base_ch (int): Base channel width of the model
+            num_res_blocks (int): Number of ResBlocks in each EncoderBlock
+            ch_mults (list[int]): Base channel multipliers for each encoder layer
+            enc_heads (list[int]): Number of attention heads in each encoder layer
+            mid_heads (int): Number of attention heads in the Bottleneck
+        """
         super().__init__()
 
         self.base_ch = base_ch

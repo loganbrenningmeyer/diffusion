@@ -1,42 +1,36 @@
 import torch
 from tqdm import tqdm
+from omegaconf import DictConfig
 
 from diffusion.models.unet import UNet
 
 
 class Diffusion:
-    """
+    def __init__(self, diffusion_config: DictConfig, device: torch.device):
+        """
     
-    Args:
-        T (int): 
-        beta_1 (float): 
-        beta_T (float): 
-        beta_schedule (float): 
-        sampler (str): 
-        ddim_steps (int): 
-        eta (float): 
-        device (torch.device): 
-    """
-    def __init__(
-            self, 
-            T: int, 
-            beta_1: float, 
-            beta_T: float, 
-            beta_schedule: str, 
-            pred_param: str,
-            sampler: str,
-            ddim_steps: int,
-            eta: float,
-            device: torch.device
-    ):
-        self.T = T
-        self.beta_1 = beta_1
-        self.beta_T = beta_T
-        self.beta_schedule = beta_schedule
-        self.pred_param = pred_param
-        self.sampler = sampler
-        self.ddim_steps = ddim_steps
-        self.eta = eta
+        Args:
+            diffusion_config (DictConfig):
+            device (torch.device): 
+
+        - `diffusion_config` fields:
+            - `T` (int): 
+            - `beta_1` (float): 
+            - `beta_T` (float): 
+            - `beta_schedule` (str): 
+            - `pred_param` (str): 
+            - `sampler` (str): 
+            - `ddim_steps` (int): 
+            - `eta` (float): 
+        """
+        self.T = diffusion_config.T
+        self.beta_1 = diffusion_config.beta_1
+        self.beta_T = diffusion_config.beta_T
+        self.beta_schedule = diffusion_config.beta_schedule
+        self.pred_param = diffusion_config.pred_param
+        self.sampler = diffusion_config.sampler
+        self.ddim_steps = diffusion_config.ddim_steps
+        self.eta = diffusion_config.eta
         self.device = device
 
         # ----------

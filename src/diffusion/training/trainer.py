@@ -8,7 +8,6 @@ import numpy as np
 from omegaconf import DictConfig
 import wandb
 from tqdm import tqdm
-from torchvision.utils import make_grid, save_image
 
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
@@ -16,34 +15,43 @@ from diffusion.utils.visualization import make_sample_image, make_sample_video
 
 
 class Trainer:
-    """
-    Conducts the training process for a diffusion UNet model.
-
-    Provides a `train()` loop and `train_step()` method for 
-    forward noising and optimizing the MSE denoising objective.
-    
-    Args:
-        model (UNet): The UNet model used for noise prediction / training.
-        diffusion (Diffusion): The Diffusion helper object for handling diffusion functionality.
-            - noise scheduling, forward noising, sampling
-        optimizer (Optimizer): The optimizer used for training the model.
-        dataloader (DataLoader): Training dataset DataLoader providing batches of images.
-        device (torch.device): Device on which training will be performed.
-        train_config (DictConfig): Config object containing misc. training parameters.
-            - EMA decay, logging interval, saving interval
-        data_config (DictConfig): Config object containing dataset information for sampling
-            - in_ch, image_size
-    """
     def __init__(
             self, 
+            train_config: DictConfig,
             model: UNet, 
             diffusion: Diffusion, 
             optimizer: Optimizer, 
             dataloader: DataLoader, 
-            device: torch.device, 
-            train_config: DictConfig,
-            data_config: DictConfig
+            device: torch.device,
+            sample_shape: tuple[int]
     ):
+        """
+        Conducts the training process for a diffusion UNet model.
+
+        Provides a `train()` loop and `train_step()` method for 
+        forward noising and optimizing the MSE objective.
+        
+        Args:
+            train_config (DictConfig): Config object containing misc. training parameters.
+                - EMA decay, logging interval, saving interval
+            model (UNet): The UNet model used for noise prediction / training.
+            diffusion (Diffusion): The Diffusion helper object for handling diffusion functionality.
+                - noise scheduling, forward noising, sampling
+            optimizer (Optimizer): The optimizer used for training the model.
+            dataloader (DataLoader): Training dataset DataLoader providing batches of images.
+            device (torch.device): Device on which training will be performed.
+            sample_shape (tuple[int]): Shape of single dataset sample (C, H, W)
+
+        - `train_config` fields:
+            - `log_interval` (int): 
+            - `ckpt_interval` (int): 
+            - `sample_interval` (int): 
+            - `save_dir` (str): 
+            - `run_name` (str): 
+            - `num_samples` (int): 
+            - `num_frames` (int): 
+            - `fps` (int): 
+        """
         self.model = model
         self.diffusion = diffusion
         self.optimizer = optimizer
@@ -58,10 +66,7 @@ class Trainer:
         self.run_name = train_config.run_name
 
         # -- Sampling Parameters
-        num_samples = train_config.sampling.num_samples
-        in_ch = data_config.in_ch
-        image_size = data_config.image_size
-        self.sample_shape = (num_samples, in_ch, image_size, image_size)
+        self.sample_shape = (train_config.sampling.num_samples, *sample_shape)
         self.num_frames = train_config.sampling.num_frames
         self.fps = train_config.sampling.fps
 

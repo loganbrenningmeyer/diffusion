@@ -38,6 +38,19 @@ def main():
     save_config(config, os.path.join(run_dir, 'config.yml'))
 
     # ----------
+    # Create DataLoader
+    # ----------
+    dataset, sample_shape = load_dataset(config.data)
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=config.train.batch_size,
+        shuffle=True,
+        num_workers=config.data.num_workers,
+        pin_memory=True
+    )
+
+    # ----------
     # Set Device
     # ----------
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,7 +58,7 @@ def main():
     # ----------
     # Initialize UNet Model
     # ----------
-    in_ch = config.data.in_ch
+    in_ch = sample_shape[0]
     base_ch = config.model.base_ch
     num_res_blocks = config.model.num_res_blocks
     ch_mults = config.model.ch_mults
@@ -58,34 +71,12 @@ def main():
     # ----------
     # Create Diffusion Utilities Object
     # ----------
-    T = config.diffusion.T
-    beta_1 = config.diffusion.beta_1
-    beta_T = config.diffusion.beta_T
-    beta_schedule = config.diffusion.beta_schedule
-    pred_param = config.diffusion.pred_param
-    sampler = config.diffusion.sampler
-    ddim_steps = config.diffusion.ddim_steps
-    eta = config.diffusion.eta
-
-    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, pred_param, sampler, ddim_steps, eta, device)
+    diffusion = Diffusion(config.diffusion, device)
 
     # ----------
     # Define Optimizer / Scheduler
     # ----------
     optimizer = torch.optim.Adam(model.parameters(), config.train.lr)
-
-    # ----------
-    # Create DataLoader
-    # ----------
-    dataset = load_dataset(config.data)
-
-    dataloader = DataLoader(
-        dataset,
-        batch_size=config.train.batch_size,
-        shuffle=True,
-        num_workers=config.data.num_workers,
-        pin_memory=True
-    )
 
     # ----------
     # Initialize wandb Logging
@@ -99,7 +90,7 @@ def main():
     # ----------
     # Create Trainer / Run Training
     # ----------
-    trainer = Trainer(model, diffusion, optimizer, dataloader, device, config.train, config.data)
+    trainer = Trainer(config.train, model, diffusion, optimizer, dataloader, device, sample_shape)
     trainer.train(config.train.epochs)
 
 if __name__ == "__main__":
