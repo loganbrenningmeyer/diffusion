@@ -38,15 +38,15 @@ diffusion:
 # Training Parameters
 # ====================
 train:
-  run_name: "diffusion_test"
-  epochs: 500
+  run_name: "diffusion_vis_test"
+  epochs: 1
   batch_size: 128
   lr: 2e-4
   ema_decay: 0.9999
 
   logging:
     log_interval: 1
-    save_interval: 1000
+    save_interval: 1
     save_dir: "./runs"
 
   sampling:

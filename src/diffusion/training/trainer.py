@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
-from diffusion.utils.visualization import make_sample_grid, make_sample_video
+from diffusion.utils.visualization import make_sample_image, make_sample_video
 
 
 class Trainer:
@@ -117,11 +117,14 @@ class Trainer:
                     frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
                     samples = frames[-1]    # final frame is output sample
 
-                    grid_frames = make_sample_video(frames, os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4"))
-                    grid = make_sample_grid(samples, os.path.join(self.save_dir, self.run_name, "figs", f"grid-step{step}.png"))
+                    video_path = os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4")
+                    video_frames = make_sample_video(frames, self.fps, video_path)
 
-                    self.log_video("samples/video", grid_frames, step, epoch)
-                    self.log_grid("samples/grid", grid, step, epoch)
+                    image_path = os.path.join(self.save_dir, self.run_name, "figs", f"grid-step{step}.png")
+                    image = make_sample_image(samples, image_path)
+
+                    self.log_video("samples/video", video_frames, step, epoch)
+                    self.log_image("samples/image", image, step, epoch)
 
             # ----------
             # Log Average Epoch Loss
@@ -195,41 +198,38 @@ class Trainer:
             step=step
         )
 
-    def log_video(self, label: str, frames: list[np.ndarray], step: int, epoch: int):
+    def log_video(self, label: str, video_frames: list[np.ndarray], step: int, epoch: int):
         """
         
         
         Args:
             label (str): Label for grid of samples on dashboard.
-            frames (list[np.ndarray]): Grid frames of batch of generated samples each of shape (C, H, W)
+            video_frames (list[np.ndarray]): List of frame images of generated samples, each of shape (C, H, W)
             step (int): Current training step
-        
-        Returns:
-        
         """
-        frames = np.stack(frames, axis=0)           # (T, H, W, C)
-        frames = np.transpose(frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
+        video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
+        video_frames = np.transpose(video_frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
 
         wandb.log(
             {
-                label: wandb.Video(frames, fps=self.fps, format="mp4"),
+                label: wandb.Video(video_frames, fps=self.fps, format="mp4"),
                 "epoch": epoch
             },
             step=step
         )
 
-    def log_grid(self, label: str, grid: np.ndarray, step: int, epoch: int):
+    def log_image(self, label: str, image: np.ndarray, step: int, epoch: int):
         """
-        Logs grid of generated samples to wandb dashboard.
+        Logs image of generated samples grid to wandb dashboard.
         
         Args:
             label (str): Label for grid of samples on dashboard.
-            grid (np.ndarray): Grid of batch of generated samples of shape (C, H, W)
+            image (np.ndarray): Image of grid of generated samples of shape (C, H, W)
             step (int): Current training step
         """
         wandb.log(
             {
-                label: wandb.Image(grid), 
+                label: wandb.Image(image), 
                 "epoch": epoch
             }, 
             step=step
