@@ -27,9 +27,9 @@ diffusion:
   T: 1000                   # Total number of diffusion timesteps
   beta_1: 1e-4              # (linear schedule): Initial beta value
   beta_T: 0.02              # (linear schedule): Final beta value
-  beta_schedule: "cosine"   # Training beta schedule ("linear" or "cosine")
-  pred_param: "v"         # Training target parameterization ("eps" or "v")
-  sampler: "ddpm"           # Sampling generation strategy ("ddpm" or "ddim")
+  beta_schedule: "linear"   # Training beta schedule ("linear" or "cosine")
+  pred_param: "eps"         # Training target parameterization ("eps" or "v")
+  sampler: "ddim"           # Sampling generation strategy ("ddpm" or "ddim")
   # -- DDIM Parameters
   ddim_steps: 100           # Number of DDIM sampling substeps
   eta: 0.0                  # DDIM eta factor to control stochasticity
@@ -38,7 +38,7 @@ diffusion:
 # Training Parameters
 # ====================
 train:
-  run_name: "diffusion_vis_test"    # Run name for wandb / save directory
+  run_name: "diffusion_ddim_test"    # Run name for wandb / save directory
   epochs: 1                     # Number of training epochs
   batch_size: 128               # Training batch size 
   lr: 2e-4                      # Learning rate

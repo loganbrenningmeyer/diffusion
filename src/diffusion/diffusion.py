@@ -252,7 +252,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise t = T->1
         # ----------
-        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Images..."):
+        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Images...", total=self.ddim_steps):
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
@@ -307,7 +307,7 @@ class Diffusion:
         # ----------
         # Iteratively Denoise t = T->1
         # ----------
-        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Frames..."):
+        for i, t_i in tqdm(enumerate(t_vals), desc="(DDIM) Sampling Frames...", total=self.ddim_steps):
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
