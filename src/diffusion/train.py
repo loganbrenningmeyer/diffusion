@@ -122,7 +122,7 @@ def main():
         logging_config=config.logging,
         ema_decay=config.train.ema_decay
     )
-    trainer.train(config.train.epochs)
+    trainer.train(config.train.steps)
 
 if __name__ == "__main__":
     main()
