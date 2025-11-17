@@ -322,7 +322,7 @@ class UNet(nn.Module):
         # ----------
         self.decoder = nn.ModuleList()
         for i, (ch_mult, num_heads) in enumerate(zip(ch_mults[::-1], enc_heads[::-1])):
-            # -- No upsampling at last block
+            # -- No upsampling at final block
             up = (i != len(ch_mults) - 1)
             # -- Define out_ch
             out_ch = base_ch*ch_mult

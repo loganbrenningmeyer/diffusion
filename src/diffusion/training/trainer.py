@@ -171,13 +171,13 @@ class Trainer:
         # Log Generated Samples
         # ----------
         if step > 0 and step % self.sample_interval == 0:
-            self.log_and_save_samples(step, epoch)
+            self.save_and_log_samples(step, epoch)
 
         # ----------
         # Save Checkpoint
         # ----------
         if step > 0 and step % self.ckpt_interval == 0:
-            self.log_and_save_checkpoint(step)
+            self.save_and_log_checkpoint(step)
     
     def log_loss(self, label: str, loss: float, step: int, epoch: int):
         """
@@ -192,7 +192,7 @@ class Trainer:
                 step=step
             )
 
-    def log_and_save_samples(self, step: int, epoch: int):
+    def save_and_log_samples(self, step: int, epoch: int):
         """
         Uses EMA model to sample, saves to disk, and logs to wandb
         """
@@ -209,7 +209,7 @@ class Trainer:
         image = make_sample_image(samples, image_path)
 
         # ----------
-        # Log Trajectories Video
+        # Log Trajectories Video / Output Samples
         # ----------
         if self.wandb_enabled:
             video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
@@ -223,9 +223,6 @@ class Trainer:
                 step=step
             )
 
-            # ----------
-            # Log Output Samples
-            # ----------
             wandb.log(
                 {
                     "figs/samples": wandb.Image(image), 
@@ -234,7 +231,7 @@ class Trainer:
                 step=step
             )
 
-    def log_and_save_checkpoint(self, step: int):
+    def save_and_log_checkpoint(self, step: int):
         """
         Saves model checkpoint at ckpt_path and logs artifact to wandb.
         """
