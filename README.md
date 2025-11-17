@@ -14,3 +14,15 @@ conda activate diffusion
 ```
 
 ## Training
+* Login to wandb / set environment variables
+```
+wandb login
+
+export WANDB_ENTITY="<entity>"
+export WANDB_PROJECT="<project>"
+```
+
+* Configure training run and launch train script
+```
+sh scripts/train.sh --config <config>.yml
+```
