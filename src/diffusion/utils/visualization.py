@@ -68,9 +68,7 @@ def make_sample_video(frames: list[torch.Tensor], fps: int, save_path: str=None)
             save_path, 
             video_frames, 
             fps=fps,
-            codec="libx264", 
-            macro_block_size=None, 
-            quality=10
+            codec="libx264"
         )
 
     return video_frames

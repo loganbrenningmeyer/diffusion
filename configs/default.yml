@@ -4,9 +4,10 @@
 data:
   name: "cifar10"       # Name of training dataset 
   path: "./datasets"    # Dataset local save path
+  image_size: 32        # Dataset resolution
   num_workers: 4        # Number of DataLoader workers
   subset:
-    enable: 0           # Use subset of dataset
+    enable: 1           # Use subset of dataset
     ratio: 0.0025       # Subset fraction of full dataset
 
 # ====================
@@ -37,8 +38,8 @@ diffusion:
 # Training Parameters
 # ====================
 train:
-  run_name: "diffusion_v"    # Run name for wandb / save directory
-  epochs: 500                     # Number of training epochs
+  run_name: "diffusion_vis_test"    # Run name for wandb / save directory
+  epochs: 1                     # Number of training epochs
   batch_size: 128               # Training batch size 
   lr: 2e-4                      # Learning rate
   ema_decay: 0.999             # Exponential moving average decay
@@ -46,7 +47,7 @@ train:
   logging:
     log_interval: 1         # Wandb logging step interval
     ckpt_interval: 10000    # Model checkpointing step interval
-    sample_interval: 2500      # Sample generation step interval
+    sample_interval: 1      # Sample generation step interval
     save_dir: "./runs"      # Directory to save training run files
 
   sampling:
