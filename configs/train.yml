@@ -9,14 +9,10 @@ run:
 # Training Parameters
 # ====================
 train:
-  epochs: 1    # Number of training epochs
+  epochs: 500    # Number of training epochs
   batch_size: 128    # Training batch size 
   lr: 2e-4    # Learning rate
   ema_decay: 0.999    # Exponential moving average decay
-
-  loss_interval: 1    # Wandb loss logging step interval
-  ckpt_interval: 1    # Model checkpointing step interval
-  sample_interval: 1     # Sample generation step interval
 
 # ====================
 # Model Configuration
@@ -37,7 +33,7 @@ data:
   num_workers: 4    # Number of DataLoader workers
 
   subset:
-    enable: 1    # Use subset of dataset
+    enable: 0    # Use subset of dataset
     ratio: 0.0025    # Subset fraction of full dataset
 
 # ====================
@@ -62,5 +58,16 @@ sample:
   # -- Visualization
   num_samples: 16    # Number of generated samples
   num_frames: 30    # Number of sample video frames
-  fps: 10    # FPS of sample videos
 
+# ====================
+# Logging Parameters
+# ====================
+logging:
+
+  wandb:
+    enable: 1    # Enable Wandb logging
+    save_ckpt: 0    # Enable saving checkpoint artifacts
+
+  loss_interval: 1    # Wandb loss logging step interval
+  ckpt_interval: 25000    # Model checkpointing step interval
+  sample_interval: 10000     # Sample generation step interval

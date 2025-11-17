@@ -69,21 +69,20 @@ def main():
     diffusion = Diffusion(
         diffusion_config=train_config.diffusion, 
         sample_config=test_config.sample, 
+        sample_shape=sample_shape,
         device=device
     )
 
     # ---------
     # Generate / Save Samples
     # ----------
-    samples_shape = (test_config.sample.num_samples, *sample_shape)
-
-    frames = diffusion.sample_frames(model, samples_shape, test_config.sample.num_frames)
+    frames = diffusion.sample_frames(model)
     samples = frames[-1]
 
     video_path = os.path.join(test_dir, "figs", "trajectory.mp4")
     image_path = os.path.join(test_dir, "figs", "samples.png")
 
-    make_sample_video(frames, test_config.sample.fps, video_path)
+    make_sample_video(frames, video_path)
     make_sample_image(samples, image_path)
 
 if __name__ == "__main__":

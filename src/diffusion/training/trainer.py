@@ -17,15 +17,14 @@ from diffusion.utils.visualization import make_sample_image, make_sample_video
 class Trainer:
     def __init__(
             self, 
-            train_config: DictConfig,
-            sample_config: DictConfig,
             model: UNet, 
             diffusion: Diffusion, 
             optimizer: Optimizer, 
             dataloader: DataLoader, 
             device: torch.device,
-            sample_shape: tuple[int],
-            train_dir: str
+            train_dir: str,
+            logging_config: DictConfig,
+            ema_decay: float
     ):
         """
         Conducts the training process for a diffusion UNet model.
@@ -34,17 +33,14 @@ class Trainer:
         forward noising and optimizing the MSE objective.
         
         Args:
-            train_config (DictConfig): Config object containing misc. training parameters.
-                - EMA decay, logging interval, saving interval
-            sample_config (DictConfig): Config object containing sampling / visualization information
             model (UNet): The UNet model used for noise prediction / training.
-            diffusion (Diffusion): The Diffusion helper object for handling diffusion functionality.
-                - noise scheduling, forward noising, sampling
+            diffusion (Diffusion): The Diffusion utilities object for handling diffusion functionality.
             optimizer (Optimizer): The optimizer used for training the model.
             dataloader (DataLoader): Training dataset DataLoader providing batches of images.
             device (torch.device): Device on which training will be performed.
-            sample_shape (tuple[int]): Shape of single dataset sample (C, H, W)
             train_dir (str): Output directory for training run
+            logging_config (DictConfig): Config object containing wandb logging / saving parameters
+            ema_decay (float): Exponential moving average decay rate
         """
         self.model = model
         self.diffusion = diffusion
@@ -54,19 +50,17 @@ class Trainer:
         self.train_dir = train_dir
 
         # -- Logging Parameters
-        self.loss_interval = train_config.loss_interval
-        self.ckpt_interval = train_config.ckpt_interval
-        self.sample_interval = train_config.sample_interval
+        self.wandb_enabled = logging_config.wandb.enable
+        self.wandb_save_ckpt = logging_config.wandb.save_ckpt
 
-        # -- Sampling Parameters
-        self.samples_shape = (sample_config.num_samples, *sample_shape)
-        self.num_frames = sample_config.num_frames
-        self.fps = sample_config.fps
+        self.loss_interval = logging_config.loss_interval
+        self.ckpt_interval = logging_config.ckpt_interval
+        self.sample_interval = logging_config.sample_interval
 
         # ----------
         # Initialize EMA Model
         # ----------
-        self.ema_decay = train_config.ema_decay
+        self.ema_decay = ema_decay
 
         self.ema_model = copy.deepcopy(model)
         for p in self.ema_model.parameters():
@@ -103,35 +97,9 @@ class Trainer:
                 step += 1
 
                 # ----------
-                # Log Batch Loss
+                # Log / Save Loss, Samples, and Checkpoint
                 # ----------
-                if step > 0 and step % self.loss_interval == 0:
-                    self.log_loss("train/batch_loss", loss.item(), step, epoch)
-
-                # ----------
-                # Save Checkpoint
-                # ----------
-                if step > 0 and step % self.ckpt_interval == 0:
-                    ckpt_path = os.path.join(self.train_dir, "checkpoints", f"model-step{step}.ckpt")
-                    self.save_checkpoint(ckpt_path, step)
-                
-                # ----------
-                # Log Samples / Sample Stats
-                # ----------
-                if step > 0 and step % self.sample_interval == 0:
-                    frames = self.diffusion.sample_frames(self.ema_model, self.samples_shape, self.num_frames)
-                    samples = frames[-1]    # final frame is output sample
-
-                    self.log_sample_stats("sample_stats", samples, step, epoch)
-
-                    video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.mp4")
-                    image_path = os.path.join(self.train_dir, "figs", f"samples-step{step}.png")
-                    
-                    video_frames = make_sample_video(frames, self.fps, video_path)
-                    image = make_sample_image(samples, image_path)
-
-                    self.log_video("figs/trajectory", video_frames, step, epoch)
-                    self.log_image("figs/samples", image, step, epoch)
+                self.log_and_save(loss.item(), step, epoch)
 
             # ----------
             # Log Average Epoch Loss
@@ -187,92 +155,91 @@ class Trainer:
         decay = self.ema_decay
         for p_ema, p_model in zip(self.ema_model.parameters(), self.model.parameters()):
             p_ema.mul_(decay).add_(p_model, alpha=1 - decay)
+
+    def log_and_save(self, loss: float, step: int, epoch: int):
+        """
+        Logs batch loss, logs/saves samples, and saves checkpoint 
+        if at the specified step count
+        """
+        # ----------
+        # Log Batch Loss
+        # ----------
+        if step > 0 and step % self.loss_interval == 0:
+            self.log_loss("train/batch_loss", loss, step, epoch)
+
+        # ----------
+        # Log Generated Samples
+        # ----------
+        if step > 0 and step % self.sample_interval == 0:
+            self.log_and_save_samples(step, epoch)
+
+        # ----------
+        # Save Checkpoint
+        # ----------
+        if step > 0 and step % self.ckpt_interval == 0:
+            self.log_and_save_checkpoint(step)
     
     def log_loss(self, label: str, loss: float, step: int, epoch: int):
         """
         Logs loss to wandb dashboard
-        
-        Args:
-            label (str): Label for metric on dashboard
-            loss (float): Current loss to log on dashboard
-            step (int): Current training step
         """
-        wandb.log(
-            {
-                label: loss, 
-                "epoch": epoch
-            }, 
-            step=step
-        )
+        if self.wandb_enabled:
+            wandb.log(
+                {
+                    label: loss, 
+                    "epoch": epoch
+                }, 
+                step=step
+            )
 
-    def log_video(self, label: str, video_frames: list[np.ndarray], step: int, epoch: int):
+    def log_and_save_samples(self, step: int, epoch: int):
         """
-        
-        
-        Args:
-            label (str): Label for grid of samples on dashboard.
-            video_frames (list[np.ndarray]): List of frame images of generated samples, each of shape (C, H, W)
-            step (int): Current training step
-            epoch (int): Current training epoch
+        Uses EMA model to sample, saves to disk, and logs to wandb
         """
-        video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
-        video_frames = np.transpose(video_frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
+        # ----------
+        # Generate / Save Sample Trajectories
+        # ----------
+        frames = self.diffusion.sample_frames(self.ema_model)
+        samples = frames[-1]    # final frame is output sample
 
-        wandb.log(
-            {
-                label: wandb.Video(video_frames, fps=self.fps, format="mp4"),
-                "epoch": epoch
-            },
-            step=step
-        )
+        video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.mp4")
+        image_path = os.path.join(self.train_dir, "figs", f"samples-step{step}.png")
 
-    def log_image(self, label: str, image: np.ndarray, step: int, epoch: int):
-        """
-        Logs image of generated samples grid to wandb dashboard.
-        
-        Args:
-            label (str): Label for grid of samples on dashboard.
-            image (np.ndarray): Image of grid of generated samples of shape (C, H, W)
-            step (int): Current training step
-        """
-        wandb.log(
-            {
-                label: wandb.Image(image), 
-                "epoch": epoch
-            }, 
-            step=step
-        )
+        video_frames = make_sample_video(frames, video_path)
+        image = make_sample_image(samples, image_path)
 
-    def log_sample_stats(self, label: str, samples: torch.Tensor, step: int, epoch: int):
-        """
-        Logs mean/std of generated samples to wandb dashboard.
-        
-        Args:
-            label (str): Label for grid of samples on dashboard.
-            samples (torch.Tensor): Batch of generated samples of shape (B, C, H, W)
-            step (int): Current training step
-            epoch (int): Current training epoch
-        """
-        s_mean = samples.mean().item()
-        s_std  = samples.std().item()
-        
-        wandb.log(
-            {
-                label + "/mean": s_mean,
-                label + "/std": s_std,
-                "epoch": epoch
-            },
-            step=step
-        )
+        # ----------
+        # Log Trajectories Video
+        # ----------
+        if self.wandb_enabled:
+            video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
+            video_frames = np.transpose(video_frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
 
-    def save_checkpoint(self, ckpt_path: str, step: int):
-        """
-        Saves model checkpoint at ckpt_path.
+            wandb.log(
+                {
+                    "figs/trajectory": wandb.Video(video_frames, fps=10, format="mp4"),
+                    "epoch": epoch
+                },
+                step=step
+            )
 
-        Args:
-            ckpt_path (str): Checkpoint save path
-            step (int): Current training step
+            # ----------
+            # Log Output Samples
+            # ----------
+            wandb.log(
+                {
+                    "figs/samples": wandb.Image(image), 
+                    "epoch": epoch
+                }, 
+                step=step
+            )
+
+    def log_and_save_checkpoint(self, step: int):
         """
+        Saves model checkpoint at ckpt_path and logs artifact to wandb.
+        """
+        ckpt_path = os.path.join(self.train_dir, "checkpoints", f"model-step{step}.ckpt")
+
         torch.save({
             "model": self.model.state_dict(), 
             "ema_model": self.ema_model.state_dict(),
@@ -280,9 +247,10 @@ class Trainer:
             "step": step
         }, ckpt_path)
 
-        artifact = wandb.Artifact(
-            name=f"model-step{step}",
-            type="model"
-        )
-        artifact.add_file(ckpt_path)
-        wandb.log_artifact(artifact)
+        if self.wandb_enabled and self.wandb_save_ckpt:
+            artifact = wandb.Artifact(
+                name=f"model-step{step}",
+                type="model"
+            )
+            artifact.add_file(ckpt_path)
+            wandb.log_artifact(artifact)

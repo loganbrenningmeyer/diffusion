@@ -10,6 +10,7 @@ class Diffusion:
             self, 
             diffusion_config: DictConfig, 
             sample_config: DictConfig,
+            sample_shape: tuple[int],
             device: torch.device
     ):
         """
@@ -28,6 +29,8 @@ class Diffusion:
         self.sampler = sample_config.sampler
         self.ddim_steps = sample_config.ddim_steps
         self.eta = sample_config.eta
+        self.samples_shape = (sample_config.num_samples, *sample_shape)
+        self.num_frames = sample_config.num_frames
 
         self.device = device
 
@@ -95,14 +98,13 @@ class Diffusion:
             v_t = torch.sqrt(alpha_bar_t) * eps - torch.sqrt(1 - alpha_bar_t) * x_0
             return x_t, v_t
     
-    def sample_image(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
+    def sample_image(self, model: UNet) -> torch.Tensor:
         """
         Coordinates generating a batch of image samples of the specified
         shape (B,C,H,W) using either DDPM or DDIM sampling.
         
         Args:
             model (UNet): Trained DDPM UNet for noise prediction
-            shape (tuple[int]): Shape of generated samples (B, C, H, W)
         
         Returns:
             x_t (torch.Tensor): Batch of generated samples of shape (B, C, H, W)
@@ -111,22 +113,20 @@ class Diffusion:
         # DDPM
         # ----------
         if self.sampler == "ddpm":
-            return self.sample_ddpm_image(model, shape)
+            return self.sample_ddpm_image(model)
         
         # ----------
         # DDIM
         # ----------
         elif self.sampler == "ddim":
-            return self.sample_ddim_image(model, shape)
+            return self.sample_ddim_image(model)
         
-    def sample_frames(self, model: UNet, shape: tuple[int], num_frames: int) -> torch.Tensor:
+    def sample_frames(self, model: UNet) -> torch.Tensor:
         """
         
         
         Args:
             model (UNet): 
-            shape: tuple[int]: 
-            num_frames (int): 
         
         Returns:
             x_ts (list[torch.Tensor]): 
@@ -135,23 +135,22 @@ class Diffusion:
         # DDPM
         # ----------
         if self.sampler == "ddpm":
-            return self.sample_ddpm_frames(model, shape, num_frames)
+            return self.sample_ddpm_frames(model)
 
         # ----------
         # DDIM
         # ----------
         elif self.sampler == "ddim":
-            return self.sample_ddim_frames(model, shape, num_frames)
+            return self.sample_ddim_frames(model)
 
     @torch.no_grad()
-    def sample_ddpm_image(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
+    def sample_ddpm_image(self, model: UNet) -> torch.Tensor:
         """
         Performs DDPM sampling to generate a batch of samples of the specified 
         shape (B,C,H,W) using the diffusion UNet.
         
         Args:
             model (UNet): Trained DDPM UNet for noise prediction
-            shape (tuple[int]): Shape of generated samples (B, C, H, W)
         
         Returns:
             x_t (torch.Tensor): Batch of generated samples of shape (B, C, H, W)
@@ -159,7 +158,7 @@ class Diffusion:
         # ----------
         # Sample Gaussian Noise (x_T)
         # ----------
-        x_t = torch.randn(shape, device=self.device)
+        x_t = torch.randn(self.samples_shape, device=self.device)
 
         # ----------
         # Iteratively Denoise t = T -> 1
@@ -168,7 +167,7 @@ class Diffusion:
             # ----------
             # Create t batch Tensor
             # ----------
-            t = torch.full((shape[0],), t_i, device=self.device, dtype=torch.long)
+            t = torch.full((x_t.shape[0],), t_i, device=self.device, dtype=torch.long)
 
             # ----------
             # Perform DDPM step
@@ -178,7 +177,7 @@ class Diffusion:
         return x_t
     
     @torch.no_grad()
-    def sample_ddpm_frames(self, model: UNet, shape: tuple[int], num_frames: int) -> list[torch.Tensor]:
+    def sample_ddpm_frames(self, model: UNet) -> list[torch.Tensor]:
         """
         
         
@@ -193,13 +192,13 @@ class Diffusion:
         # ----------
         # Sample Gaussian Noise (x_T)
         # ----------
-        x_t = torch.randn(shape, device=self.device)
+        x_t = torch.randn(self.samples_shape, device=self.device)
 
         # ----------
         # Init Frames List / Define Frame Steps
         # ----------
         frames = [x_t.cpu()]
-        frame_ts = set([round(1 + i * (self.T - 1) / (num_frames - 1)) for i in range(num_frames)][:-1])     # {1...T} \ T
+        frame_ts = set([round(1 + i * (self.T - 1) / (self.num_frames - 1)) for i in range(self.num_frames)][:-1])     # {1...T} \ T
 
         # ----------
         # Iteratively Denoise: t = [T...1]
@@ -208,7 +207,7 @@ class Diffusion:
             # ----------
             # Create t batch Tensor
             # ----------
-            t = torch.full((shape[0],), t_i, device=self.device, dtype=torch.long)
+            t = torch.full((x_t.shape[0],), t_i, device=self.device, dtype=torch.long)
 
             # ----------
             # Perform DDPM step: x_t -> x_t-1
@@ -224,14 +223,13 @@ class Diffusion:
         return frames
     
     @torch.no_grad()
-    def sample_ddim_image(self, model: UNet, shape: tuple[int]) -> torch.Tensor:
+    def sample_ddim_image(self, model: UNet) -> torch.Tensor:
         """
         Performs DDIM sampling to generate a batch of samples of the specified
         shape (B,C,H,W) using the diffusion UNet.
         
         Args:
             model (UNet): Trained DDPM UNet for noise prediction
-            shape (tuple[int]): Shape of generated samples (B, C, H, W)
         
         Returns:
             x_t (torch.Tensor): Batch of generated samples of shape (B, C, H, W)
@@ -239,7 +237,7 @@ class Diffusion:
         # ----------
         # Sample Gaussian Noise (x_T)
         # ----------
-        x_t = torch.randn(shape, device=self.device)
+        x_t = torch.randn(self.samples_shape, device=self.device)
 
         # ----------
         # Uniformly space ddim_steps t-values [T...1] + [0] for t_prev at t_i = 1
@@ -254,8 +252,8 @@ class Diffusion:
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
-            t = torch.full((shape[0],), t_i, device=self.device, dtype=torch.long)
-            t_prev = torch.full((shape[0],), t_vals[i+1], device=self.device, dtype=torch.long)
+            t = torch.full((x_t.shape[0],), t_i, device=self.device, dtype=torch.long)
+            t_prev = torch.full((x_t.shape[0],), t_vals[i+1], device=self.device, dtype=torch.long)
 
             # ----------
             # Perform DDIM Step
@@ -272,7 +270,7 @@ class Diffusion:
         return x_t
     
     @torch.no_grad()
-    def sample_ddim_frames(self, model: UNet, shape: tuple[int], num_frames: int) -> list[torch.Tensor]:
+    def sample_ddim_frames(self, model: UNet) -> list[torch.Tensor]:
         """
         
         
@@ -287,7 +285,7 @@ class Diffusion:
         # ----------
         # Sample Gaussian Noise (x_T)
         # ----------
-        x_t = torch.randn(shape, device=self.device)
+        x_t = torch.randn(self.samples_shape, device=self.device)
 
         # ----------
         # Uniformly space ddim_steps t-values [T...1] + [0] for t_prev at t_i = 1
@@ -299,7 +297,7 @@ class Diffusion:
         # Init Frames List / Define Frame Steps
         # ----------
         frames = [x_t.cpu()]
-        indices = [round(i * (self.ddim_steps - 1) / (num_frames - 1)) for i in range(num_frames)]
+        indices = [round(i * (self.ddim_steps - 1) / (self.num_frames - 1)) for i in range(self.num_frames)]
         frame_ts = set([t_vals[i] for i in indices][1:])   # {T...1} \ T
 
         # ----------
@@ -309,8 +307,8 @@ class Diffusion:
             # ----------
             # Create t / t_prev batch Tensors
             # ----------
-            t = torch.full((shape[0],), t_i, device=self.device, dtype=torch.long)
-            t_prev = torch.full((shape[0],), t_vals[i+1], device=self.device, dtype=torch.long)
+            t = torch.full((x_t.shape[0],), t_i, device=self.device, dtype=torch.long)
+            t_prev = torch.full((x_t.shape[0],), t_vals[i+1], device=self.device, dtype=torch.long)
 
             # ----------
             # Perform DDIM Step

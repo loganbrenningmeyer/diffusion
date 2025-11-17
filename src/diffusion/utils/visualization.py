@@ -39,7 +39,7 @@ def make_sample_image(samples: torch.Tensor, save_path: str=None) -> np.ndarray:
     return image
 
 
-def make_sample_video(frames: list[torch.Tensor], fps: int, save_path: str=None) -> list[np.ndarray]:
+def make_sample_video(frames: list[torch.Tensor], save_path: str=None) -> list[np.ndarray]:
     """
     Creates a video of a batch of generated sample trajectories.
     
@@ -67,7 +67,7 @@ def make_sample_video(frames: list[torch.Tensor], fps: int, save_path: str=None)
         iio.imwrite(
             save_path, 
             video_frames, 
-            fps=fps,
+            fps=10,
             codec="libx264"
         )
 

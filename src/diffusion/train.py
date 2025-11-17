@@ -18,6 +18,24 @@ def load_config(config_path: str) -> DictConfig:
 def save_config(config: DictConfig, save_path: str):
     OmegaConf.save(config, save_path)
 
+def init_wandb(run_name: str):
+    """
+    Initializes wandb for logging, runs in offline mode on failure  
+    """
+    try:
+        wandb.init(
+            name=run_name,
+            project=os.environ.get("WANDB_PROJECT", "diffusion"), 
+            entity=os.environ.get("WANDB_ENTITY", None)
+        )
+    except Exception as e:
+        # -- Use offline if init fails
+        print(f"---- wandb.init() failed, running offline: {e}")
+        wandb.init(
+            name=run_name,
+            mode='offline'
+        )
+
 def main():
     # ----------
     # Parse Arguments / Load Config
@@ -76,6 +94,7 @@ def main():
     diffusion = Diffusion(
         diffusion_config=config.diffusion, 
         sample_config=config.sample, 
+        sample_shape=sample_shape,
         device=device
     )
 
@@ -87,25 +106,21 @@ def main():
     # ----------
     # Initialize wandb Logging
     # ----------
-    wandb.init(
-        project=os.environ.get("WANDB_PROJECT", "diffusion"), 
-        entity=os.environ.get("WANDB_ENTITY", None),
-        name=config.run.name
-    )
+    if config.logging.wandb.enable:
+        init_wandb(config.run.name)
 
     # ----------
     # Create Trainer / Run Training
     # ----------
     trainer = Trainer(
-        train_config=config.train, 
-        sample_config=config.sample,
         model=model, 
         diffusion=diffusion, 
         optimizer=optimizer, 
         dataloader=dataloader, 
         device=device, 
-        sample_shape=sample_shape, 
-        train_dir=train_dir
+        train_dir=train_dir,
+        logging_config=config.logging,
+        ema_decay=config.train.ema_decay
     )
     trainer.train(config.train.epochs)
 
