@@ -1,4 +1,2 @@
 set -ex
-
-CONFIG=$1
-python -m diffusion.train --config "$CONFIG"
+python -m diffusion.train --config configs/train.yml

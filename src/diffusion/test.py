@@ -1,17 +1,20 @@
+import os
 import argparse
 import torch
-from torch.utils.data import DataLoader
 from omegaconf import OmegaConf, DictConfig
 
-from diffusion.data.datasets import load_dataset
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
-from diffusion.utils.visualization import make_sample_grid
+from diffusion.data.datasets import get_sample_shape
+from diffusion.utils.visualization import make_sample_image, make_sample_video
 
 
 def load_config(config_path: str) -> DictConfig:
     config = OmegaConf.load(config_path)
     return config
+
+def save_config(config: DictConfig, save_path: str):
+    OmegaConf.save(config, save_path)
 
 def main():
     # ----------
@@ -21,7 +24,18 @@ def main():
     parser.add_argument("--config", type=str, required=True)
     args = parser.parse_args()
 
-    config = load_config(args.config)
+    test_config = load_config(args.config)
+
+    train_dir = os.path.join(test_config.run.run_dir, "training")
+    train_config = load_config(os.path.join(train_dir, "config.yml"))
+
+    # ---------
+    # Create Testing Dirs / Save Config
+    # ----------
+    test_dir = os.path.join(test_config.run.run_dir, "testing", test_config.run.name)
+    os.makedirs(os.path.join(test_dir, 'figs'), exist_ok=True)
+
+    save_config(test_config, os.path.join(test_dir, 'config.yml'))
 
     # ----------
     # Set Device
@@ -29,47 +43,48 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ----------
-    # Initialize UNet Model
+    # Load UNet Model
     # ----------
-    in_ch = config.data.in_ch
-    base_ch = config.model.base_ch
-    num_res_blocks = config.model.num_res_blocks
-    ch_mults = config.model.ch_mults
-    enc_heads = config.model.enc_heads
-    mid_heads = config.model.mid_heads
+    sample_shape = get_sample_shape(train_config.data.dataset)
+    
+    model = UNet(
+        in_ch=sample_shape[0],
+        base_ch=train_config.model.base_ch,
+        num_res_blocks=train_config.model.num_res_blocks,
+        ch_mults=train_config.model.ch_mults,
+        enc_heads=train_config.model.enc_heads,
+        mid_heads=train_config.model.mid_heads
+    )
 
-    model = UNet(in_ch, base_ch, num_res_blocks, ch_mults, enc_heads, mid_heads)
+    ckpt_path = os.path.join(train_dir, "checkpoints", test_config.run.checkpoint)
+    ckpt = torch.load(ckpt_path, map_location="cpu")
+    
+    model.load_state_dict(ckpt["ema_model"])
     model.to(device)
+    model.eval()
 
     # ----------
     # Create Diffusion Utilities Object
     # ----------
-    T = config.diffusion.T
-    beta_1 = config.diffusion.beta_1
-    beta_T = config.diffusion.beta_T
-    beta_schedule = config.diffusion.beta_schedule
-    sampler = config.diffusion.sampler
-    ddim_steps = config.diffusion.ddim_steps
-    eta = config.diffusion.eta
-
-    diffusion = Diffusion(T, beta_1, beta_T, beta_schedule, sampler, ddim_steps, eta, device)
-
-    # ----------
-    # Create DataLoader
-    # ----------
-    dataset = load_dataset(config.data)
-
-    dataloader = DataLoader(
-        dataset,
-        batch_size=config.train.batch_size,
-        shuffle=True,
-        num_workers=config.data.num_workers,
-        pin_memory=True
+    diffusion = Diffusion(
+        diffusion_config=train_config.diffusion, 
+        sample_config=test_config.sample, 
+        device=device
     )
 
+    # ---------
+    # Generate / Save Samples
     # ----------
-    # Visualize Batch
-    # ----------
+    samples_shape = (test_config.sample.num_samples, *sample_shape)
+
+    frames = diffusion.sample_frames(model, samples_shape, test_config.sample.num_frames)
+    samples = frames[-1]
+
+    video_path = os.path.join(test_dir, "figs", "trajectory.mp4")
+    image_path = os.path.join(test_dir, "figs", "samples.png")
+
+    make_sample_video(frames, test_config.sample.fps, video_path)
+    make_sample_image(samples, image_path)
 
 if __name__ == "__main__":
     main()

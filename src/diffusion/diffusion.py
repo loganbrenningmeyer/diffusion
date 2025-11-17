@@ -6,31 +6,29 @@ from diffusion.models.unet import UNet
 
 
 class Diffusion:
-    def __init__(self, diffusion_config: DictConfig, device: torch.device):
+    def __init__(
+            self, 
+            diffusion_config: DictConfig, 
+            sample_config: DictConfig,
+            device: torch.device
+    ):
         """
     
         Args:
             diffusion_config (DictConfig):
+            sample_config (DictConfig): 
             device (torch.device): 
-
-        - `diffusion_config` fields:
-            - `T` (int): 
-            - `beta_1` (float): 
-            - `beta_T` (float): 
-            - `beta_schedule` (str): 
-            - `pred_param` (str): 
-            - `sampler` (str): 
-            - `ddim_steps` (int): 
-            - `eta` (float): 
         """
         self.T = diffusion_config.T
         self.beta_1 = diffusion_config.beta_1
         self.beta_T = diffusion_config.beta_T
         self.beta_schedule = diffusion_config.beta_schedule
-        self.pred_param = diffusion_config.pred_param
-        self.sampler = diffusion_config.sampler
-        self.ddim_steps = diffusion_config.ddim_steps
-        self.eta = diffusion_config.eta
+        self.target = diffusion_config.target
+
+        self.sampler = sample_config.sampler
+        self.ddim_steps = sample_config.ddim_steps
+        self.eta = sample_config.eta
+
         self.device = device
 
         # ----------
@@ -65,9 +63,9 @@ class Diffusion:
             t (torch.Tensor): Tensor of timesteps in [1,T] of shape (B,)
         
         Returns:
-            target (torch.Tensor): The training target at timestep t of shape (B, C, H, W)
-            - `if pred_param == "eps"`: returns `eps` (Gaussian noise added to x_0)
-            - `if pred_param == "v"`: returns `v_t` (v-parameterization)
+            (torch.Tensor): The training target at timestep t of shape (B, C, H, W)
+            - `if target == "eps"`: returns `eps` (Gaussian noise added to x_0)
+            - `if target == "v"`: returns `v_t` (v-parameterization)
         """
         # ----------
         # Sample Gaussian noise
@@ -86,14 +84,14 @@ class Diffusion:
         # ----------
         # eps-prediction
         # ----------
-        if self.pred_param == "eps":
+        if self.target == "eps":
             return x_t, eps
         
         # ----------
         # v-prediction
         # => v_t = \sqrt{\bar\alpha_t}\epsilon - \sqrt{1 - \bar\alpha_t}x_0
         # ----------
-        elif self.pred_param == "v":
+        elif self.target == "v":
             v_t = torch.sqrt(alpha_bar_t) * eps - torch.sqrt(1 - alpha_bar_t) * x_0
             return x_t, v_t
     
@@ -451,14 +449,14 @@ class Diffusion:
         # ----------
         # eps-prediction model
         # ----------
-        if self.pred_param == "eps":
+        if self.target == "eps":
             return model(x_t, t)
         
         # ----------
         # v-prediction model
         # => \epsilon_\theta(x_t,t) = \sqrt{1 - \bar\alpha_t}x_t + \sqrt{\bar\alpha_t}v_\theta(x_t,t)
         # ----------
-        elif self.pred_param == "v":
+        elif self.target == "v":
             v_theta = model(x_t, t)
             alpha_bar_t = self.alpha_bars[t][:, None, None, None]
             eps_theta = torch.sqrt(1 - alpha_bar_t) * x_t + torch.sqrt(alpha_bar_t) * v_theta

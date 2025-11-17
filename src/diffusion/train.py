@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 from omegaconf import OmegaConf, DictConfig
 import wandb
 
-from diffusion.data.datasets import load_dataset
+from diffusion.data.datasets import load_dataset, get_sample_shape
 from diffusion.models.unet import UNet
 from diffusion.diffusion import Diffusion
 from diffusion.training.trainer import Trainer
@@ -29,18 +29,18 @@ def main():
     config = load_config(args.config)
 
     # ---------
-    # Create Run Dirs / Save Config
+    # Create Training Dirs / Save Config
     # ----------
-    run_dir = os.path.join(config.train.logging.save_dir, config.train.run_name)
-    os.makedirs(os.path.join(run_dir, 'checkpoints'), exist_ok=True)
-    os.makedirs(os.path.join(run_dir, 'figs'), exist_ok=True)
+    train_dir = os.path.join(config.run.runs_dir, config.run.name, "training")
+    os.makedirs(os.path.join(train_dir, 'checkpoints'), exist_ok=True)
+    os.makedirs(os.path.join(train_dir, 'figs'), exist_ok=True)
 
-    save_config(config, os.path.join(run_dir, 'config.yml'))
+    save_config(config, os.path.join(train_dir, 'config.yml'))
 
     # ----------
     # Create DataLoader
     # ----------
-    dataset, sample_shape = load_dataset(config.data)
+    dataset = load_dataset(config.data)
 
     dataloader = DataLoader(
         dataset,
@@ -58,23 +58,29 @@ def main():
     # ----------
     # Initialize UNet Model
     # ----------
-    in_ch = sample_shape[0]
-    base_ch = config.model.base_ch
-    num_res_blocks = config.model.num_res_blocks
-    ch_mults = config.model.ch_mults
-    enc_heads = config.model.enc_heads
-    mid_heads = config.model.mid_heads
+    sample_shape = get_sample_shape(config.data.dataset)
 
-    model = UNet(in_ch, base_ch, num_res_blocks, ch_mults, enc_heads, mid_heads)
+    model = UNet(
+        in_ch=sample_shape[0], 
+        base_ch=config.model.base_ch, 
+        num_res_blocks=config.model.num_res_blocks, 
+        ch_mults=config.model.ch_mults, 
+        enc_heads=config.model.enc_heads, 
+        mid_heads=config.model.mid_heads
+    )
     model.to(device)
 
     # ----------
     # Create Diffusion Utilities Object
     # ----------
-    diffusion = Diffusion(config.diffusion, device)
+    diffusion = Diffusion(
+        diffusion_config=config.diffusion, 
+        sample_config=config.sample, 
+        device=device
+    )
 
     # ----------
-    # Define Optimizer / Scheduler
+    # Define Optimizer
     # ----------
     optimizer = torch.optim.Adam(model.parameters(), config.train.lr)
 
@@ -84,13 +90,23 @@ def main():
     wandb.init(
         project=os.environ.get("WANDB_PROJECT", "diffusion"), 
         entity=os.environ.get("WANDB_ENTITY", None),
-        name=config.train.run_name
+        name=config.run.name
     )
 
     # ----------
     # Create Trainer / Run Training
     # ----------
-    trainer = Trainer(config.train, model, diffusion, optimizer, dataloader, device, sample_shape)
+    trainer = Trainer(
+        train_config=config.train, 
+        sample_config=config.sample,
+        model=model, 
+        diffusion=diffusion, 
+        optimizer=optimizer, 
+        dataloader=dataloader, 
+        device=device, 
+        sample_shape=sample_shape, 
+        train_dir=train_dir
+    )
     trainer.train(config.train.epochs)
 
 if __name__ == "__main__":

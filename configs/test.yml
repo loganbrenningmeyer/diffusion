@@ -1,0 +1,21 @@
+# ====================
+# Run Parameters
+# ====================
+run:
+  name: "ddim"    # Test save directory name
+  run_dir: "./runs/diffusion_eps"    # Training run directory to load model / diffusion params
+  checkpoint: "model-step100000.ckpt"    # Checkpoint to load for testing
+
+# ====================
+# Sampling Parameters
+# ====================
+sample:
+  # -- Diffusion
+  sampler: "ddim"           # Sampling generation strategy ("ddpm" or "ddim")
+  ddim_steps: 100           # Number of DDIM sampling substeps
+  eta: 0.0                  # DDIM eta factor to control stochasticity
+  
+  # -- Visualization
+  num_samples: 64   # Number of generated samples
+  num_frames: 30    # Number of sample video frames
+  fps: 10           # FPS of sample videos

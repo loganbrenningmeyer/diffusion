@@ -18,12 +18,14 @@ class Trainer:
     def __init__(
             self, 
             train_config: DictConfig,
+            sample_config: DictConfig,
             model: UNet, 
             diffusion: Diffusion, 
             optimizer: Optimizer, 
             dataloader: DataLoader, 
             device: torch.device,
-            sample_shape: tuple[int]
+            sample_shape: tuple[int],
+            train_dir: str
     ):
         """
         Conducts the training process for a diffusion UNet model.
@@ -34,6 +36,7 @@ class Trainer:
         Args:
             train_config (DictConfig): Config object containing misc. training parameters.
                 - EMA decay, logging interval, saving interval
+            sample_config (DictConfig): Config object containing sampling / visualization information
             model (UNet): The UNet model used for noise prediction / training.
             diffusion (Diffusion): The Diffusion helper object for handling diffusion functionality.
                 - noise scheduling, forward noising, sampling
@@ -41,34 +44,24 @@ class Trainer:
             dataloader (DataLoader): Training dataset DataLoader providing batches of images.
             device (torch.device): Device on which training will be performed.
             sample_shape (tuple[int]): Shape of single dataset sample (C, H, W)
-
-        - `train_config` fields:
-            - `log_interval` (int): 
-            - `ckpt_interval` (int): 
-            - `sample_interval` (int): 
-            - `save_dir` (str): 
-            - `run_name` (str): 
-            - `num_samples` (int): 
-            - `num_frames` (int): 
-            - `fps` (int): 
+            train_dir (str): Output directory for training run
         """
         self.model = model
         self.diffusion = diffusion
         self.optimizer = optimizer
         self.dataloader = dataloader
         self.device = device
+        self.train_dir = train_dir
 
         # -- Logging Parameters
-        self.log_interval = train_config.logging.log_interval
-        self.ckpt_interval = train_config.logging.ckpt_interval
-        self.sample_interval = train_config.logging.sample_interval
-        self.save_dir = train_config.logging.save_dir
-        self.run_name = train_config.run_name
+        self.loss_interval = train_config.loss_interval
+        self.ckpt_interval = train_config.ckpt_interval
+        self.sample_interval = train_config.sample_interval
 
         # -- Sampling Parameters
-        self.sample_shape = (train_config.sampling.num_samples, *sample_shape)
-        self.num_frames = train_config.sampling.num_frames
-        self.fps = train_config.sampling.fps
+        self.samples_shape = (sample_config.num_samples, *sample_shape)
+        self.num_frames = sample_config.num_frames
+        self.fps = sample_config.fps
 
         # ----------
         # Initialize EMA Model
@@ -112,32 +105,33 @@ class Trainer:
                 # ----------
                 # Log Batch Loss
                 # ----------
-                if step > 0 and step % self.log_interval == 0:
+                if step > 0 and step % self.loss_interval == 0:
                     self.log_loss("train/batch_loss", loss.item(), step, epoch)
 
                 # ----------
                 # Save Checkpoint
                 # ----------
                 if step > 0 and step % self.ckpt_interval == 0:
-                    self.save_checkpoint(step)
+                    ckpt_path = os.path.join(self.train_dir, "checkpoints", f"model-step{step}.ckpt")
+                    self.save_checkpoint(ckpt_path, step)
                 
                 # ----------
                 # Log Samples / Sample Stats
                 # ----------
                 if step > 0 and step % self.sample_interval == 0:
-                    frames = self.diffusion.sample_frames(self.ema_model, self.sample_shape, self.num_frames)
+                    frames = self.diffusion.sample_frames(self.ema_model, self.samples_shape, self.num_frames)
                     samples = frames[-1]    # final frame is output sample
 
                     self.log_sample_stats("sample_stats", samples, step, epoch)
 
-                    video_path = os.path.join(self.save_dir, self.run_name, "figs", f"video-step{step}.mp4")
-                    image_path = os.path.join(self.save_dir, self.run_name, "figs", f"grid-step{step}.png")
+                    video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.mp4")
+                    image_path = os.path.join(self.train_dir, "figs", f"samples-step{step}.png")
                     
                     video_frames = make_sample_video(frames, self.fps, video_path)
                     image = make_sample_image(samples, image_path)
 
-                    self.log_video("samples/video", video_frames, step, epoch)
-                    self.log_image("samples/image", image, step, epoch)
+                    self.log_video("figs/trajectory", video_frames, step, epoch)
+                    self.log_image("figs/samples", image, step, epoch)
 
             # ----------
             # Log Average Epoch Loss
@@ -271,14 +265,14 @@ class Trainer:
             step=step
         )
 
-    def save_checkpoint(self, step: int):
+    def save_checkpoint(self, ckpt_path: str, step: int):
         """
-        Saves model checkpoint within save_dir/checkpoints.
+        Saves model checkpoint at ckpt_path.
 
         Args:
+            ckpt_path (str): Checkpoint save path
             step (int): Current training step
         """
-        ckpt_path = os.path.join(self.save_dir, self.run_name, "checkpoints", f"model-step{step}.ckpt")
         torch.save({
             "model": self.model.state_dict(), 
             "ema_model": self.ema_model.state_dict(),

@@ -1,0 +1,66 @@
+# ====================
+# Run Configuration
+# ====================
+run:
+  name: "diffusion_eps_1"    # Training run name
+  runs_dir: "./runs"    # Training runs save directory
+
+# ====================
+# Training Parameters
+# ====================
+train:
+  epochs: 1    # Number of training epochs
+  batch_size: 128    # Training batch size 
+  lr: 2e-4    # Learning rate
+  ema_decay: 0.999    # Exponential moving average decay
+
+  loss_interval: 1    # Wandb loss logging step interval
+  ckpt_interval: 1    # Model checkpointing step interval
+  sample_interval: 1     # Sample generation step interval
+
+# ====================
+# Model Configuration
+# ====================
+model:
+  base_ch: 128    # Base channel width of UNet
+  num_res_blocks: 2    # Number of ResBlocks in each encoder layer
+  ch_mults: [1,2,2,2]    # base_ch multipliers for each encoder layer
+  enc_heads: [0,1,0,0]    # Number of attention heads in each encoder layer
+  mid_heads: 1    # Number of attention heads in the bottleneck
+
+# ====================
+# Dataset Configuration
+# ====================
+data:
+  dataset: "cifar10"    # Name of training dataset 
+  data_dir: "./datasets"    # Dataset local save path
+  num_workers: 4    # Number of DataLoader workers
+
+  subset:
+    enable: 1    # Use subset of dataset
+    ratio: 0.0025    # Subset fraction of full dataset
+
+# ====================
+# Diffusion Parameters
+# ====================
+diffusion:
+  T: 1000    # Total number of diffusion timesteps
+  beta_1: 1e-4    # (linear schedule): Initial beta value
+  beta_T: 0.02    # (linear schedule): Final beta value
+  beta_schedule: "linear"    # Training beta schedule ("linear" or "cosine")
+  target: "eps"    # Training target parameterization ("eps" or "v")
+
+# ====================
+# Sampling Parameters
+# ====================
+sample:
+  # -- Diffusion
+  sampler: "ddpm"    # Sampling generation strategy ("ddpm" or "ddim")
+  ddim_steps: 100    # Number of DDIM sampling substeps
+  eta: 0.0    # DDIM eta factor to control stochasticity
+
+  # -- Visualization
+  num_samples: 16    # Number of generated samples
+  num_frames: 30    # Number of sample video frames
+  fps: 10    # FPS of sample videos
+
