@@ -228,7 +228,7 @@ class Trainer:
 
             wandb.log(
                 {
-                    "figs/samples": wandb.Image(image), 
+                    "figs/samples": wandb.Image(image_path), 
                     "epoch": epoch
                 }, 
                 step=step
