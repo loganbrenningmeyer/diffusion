@@ -61,14 +61,14 @@ def make_sample_video(frames: list[torch.Tensor], save_path: str=None) -> list[n
     video_frames = [upscale_image(img) for img in video_frames]
 
     # ----------
-    # Save MP4
+    # Save GIF
     # ----------
     if save_path:
         iio.imwrite(
             save_path, 
             video_frames, 
-            fps=10,
-            codec="libx264"
+            duration=0.1,
+            loop=0
         )
 
     return video_frames

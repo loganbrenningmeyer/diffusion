@@ -202,7 +202,7 @@ class Trainer:
         frames = self.diffusion.sample_frames(self.ema_model)
         samples = frames[-1]    # final frame is output sample
 
-        video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.mp4")
+        video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.gif")
         image_path = os.path.join(self.train_dir, "figs", f"samples-step{step}.png")
 
         video_frames = make_sample_video(frames, video_path)
@@ -217,7 +217,7 @@ class Trainer:
 
             wandb.log(
                 {
-                    "figs/trajectory": wandb.Video(video_frames, fps=10, format="mp4"),
+                    "figs/trajectory": wandb.Video(video_path, fps=10, format="gif"),
                     "epoch": epoch
                 },
                 step=step
