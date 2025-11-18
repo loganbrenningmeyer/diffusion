@@ -67,16 +67,17 @@ class Trainer:
             p.requires_grad_(False)
         self.ema_model.eval()
 
-    def train(self, epochs: int):
+    def train(self, steps: int):
         """
-        Trains the UNet model for the specified epochs and logs losses.
+        Trains the UNet model for the specified number of steps.
         
         Parameters:
-            epochs (int): Total number of training epochs
+            steps (int): Total number of training steps
         """
-        step = 0
+        step = 1
+        epoch = 1
 
-        for epoch in range(epochs):
+        while step < steps:
             self.model.train()
 
             # ----------
@@ -92,20 +93,22 @@ class Trainer:
                 x = x.to(self.device)
                 loss = self.train_step(x)
 
-                epoch_loss += loss.item()
-                num_batches += 1
-                step += 1
-
                 # ----------
                 # Log / Save Loss, Samples, and Checkpoint
                 # ----------
                 self.log_and_save(loss.item(), step, epoch)
+
+                epoch_loss += loss.item()
+                num_batches += 1
+                step += 1
 
             # ----------
             # Log Average Epoch Loss
             # ----------
             epoch_loss /= num_batches
             self.log_loss("train/epoch_loss", epoch_loss, step, epoch)
+
+            epoch += 1
 
     def train_step(self, x: torch.Tensor) -> torch.Tensor:
         """

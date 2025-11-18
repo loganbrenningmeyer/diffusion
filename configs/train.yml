@@ -2,17 +2,17 @@
 # Run Configuration
 # ====================
 run:
-  name: diffusion_eps_1 # Training run name
-  runs_dir: ./runs # Training runs save directory
+  name: "ddpm"    # Training run name
+  runs_dir: "./runs"    # Training runs save directory
 
 # ====================
 # Training Parameters
 # ====================
 train:
-  epochs: 1 # Number of training epochs
-  batch_size: 128 # Training batch size 
-  lr: 0.0002 # Learning rate
-  ema_decay: 0.999 # Exponential moving average decay
+  steps: 800000    # Number of training steps
+  batch_size: 128    # Training batch size 
+  lr: 2e-4    # Learning rate
+  ema_decay: 0.9999    # Exponential moving average decay
 
 # ====================
 # Model Configuration
@@ -68,6 +68,6 @@ logging:
     enable: 0 # Enable Wandb logging
     save_ckpt: 0 # Enable saving checkpoint artifacts
 
-  loss_interval: 1 # Wandb loss logging step interval
-  ckpt_interval: 25000 # Model checkpointing step interval
-  sample_interval: 1 # Sample generation step interval
+  loss_interval: 1    # Wandb loss logging step interval
+  ckpt_interval: 50000    # Model checkpointing step interval
+  sample_interval: 10000     # Sample generation step interval
