@@ -17,14 +17,16 @@ from diffusion.utils.visualization import make_sample_image, make_sample_video
 class Trainer:
     def __init__(
             self, 
-            model: UNet, 
+            model: UNet,
+            ema_model: UNet,
             diffusion: Diffusion, 
             optimizer: Optimizer, 
             dataloader: DataLoader, 
             device: torch.device,
             train_dir: str,
             logging_config: DictConfig,
-            ema_decay: float
+            ema_decay: float,
+            start_step: int=1
     ):
         """
         Conducts the training process for a diffusion UNet model.
@@ -43,11 +45,14 @@ class Trainer:
             ema_decay (float): Exponential moving average decay rate
         """
         self.model = model
+        self.ema_model = ema_model
         self.diffusion = diffusion
         self.optimizer = optimizer
         self.dataloader = dataloader
         self.device = device
         self.train_dir = train_dir
+        self.ema_decay = ema_decay
+        self.start_step = start_step
 
         # -- Logging Parameters
         self.wandb_enabled = logging_config.wandb.enable
@@ -57,14 +62,8 @@ class Trainer:
         self.ckpt_interval = logging_config.ckpt_interval
         self.sample_interval = logging_config.sample_interval
 
-        # ----------
-        # Initialize EMA Model
-        # ----------
-        self.ema_decay = ema_decay
-
-        self.ema_model = copy.deepcopy(model)
-        for p in self.ema_model.parameters():
-            p.requires_grad_(False)
+        # -- Set model train/eval modes
+        self.model.train()
         self.ema_model.eval()
 
     def train(self, steps: int):
@@ -74,7 +73,7 @@ class Trainer:
         Parameters:
             steps (int): Total number of training steps
         """
-        step = 1
+        step = self.start_step
         epoch = 1
 
         while step < steps:
@@ -86,7 +85,7 @@ class Trainer:
             epoch_loss = 0.0
             num_batches = 0
 
-            for x, _ in tqdm(self.dataloader, desc=f"Epoch {epoch}", unit="Batch"):
+            for x, _ in tqdm(self.dataloader, desc=f"Epoch {epoch}, Step {step}", unit="Batch"):
                 # ----------
                 # Perform Train Step
                 # ----------
@@ -208,19 +207,16 @@ class Trainer:
         video_path = os.path.join(self.train_dir, "figs", f"trajectory-step{step}.gif")
         image_path = os.path.join(self.train_dir, "figs", f"samples-step{step}.png")
 
-        video_frames = make_sample_video(frames, video_path)
-        image = make_sample_image(samples, image_path)
+        make_sample_video(frames, video_path)
+        make_sample_image(samples, image_path)
 
         # ----------
         # Log Trajectories Video / Output Samples
         # ----------
         if self.wandb_enabled:
-            video_frames = np.stack(video_frames, axis=0)           # (T, H, W, C)
-            video_frames = np.transpose(video_frames, (0, 3, 1, 2)) # (T, C, H, W) - required wandb.Video shape
-
             wandb.log(
                 {
-                    "figs/trajectory": wandb.Video(video_path, fps=10, format="gif"),
+                    "figs/trajectory": wandb.Video(video_path, format="gif"),
                     "epoch": epoch
                 },
                 step=step
