@@ -37,7 +37,7 @@ data:
 
   subset:
     enable: 0 # Use subset of dataset
-    ratio: 0.0025 # Subset fraction of full dataset
+    ratio: 0.2 # Subset fraction of full dataset
 
 # ====================
 # Diffusion Parameters
