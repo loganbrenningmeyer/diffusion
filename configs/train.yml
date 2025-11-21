@@ -2,8 +2,11 @@
 # Run Configuration
 # ====================
 run:
-  name: "ddpm"    # Training run name
-  runs_dir: "./runs"    # Training runs save directory
+  name: "ddpm" # Training run name
+  runs_dir: "./runs" # Training runs save directory
+  resume:     
+    enable: 1 # Resume training run
+    ckpt_name: "model-step650000.ckpt" # Checkpoint to load for training 
 
 # ====================
 # Training Parameters
@@ -33,7 +36,7 @@ data:
   num_workers: 4 # Number of DataLoader workers
 
   subset:
-    enable: 1 # Use subset of dataset
+    enable: 0 # Use subset of dataset
     ratio: 0.0025 # Subset fraction of full dataset
 
 # ====================
@@ -51,7 +54,7 @@ diffusion:
 # ====================
 sample:
   # -- Diffusion
-  sampler: ddim # Sampling generation strategy ("ddpm" or "ddim")
+  sampler: ddpm # Sampling generation strategy ("ddpm" or "ddim")
   ddim_steps: 25 # Number of DDIM sampling substeps
   eta: 0 # DDIM eta factor to control stochasticity
 
@@ -65,7 +68,7 @@ sample:
 logging:
 
   wandb:
-    enable: 0 # Enable Wandb logging
+    enable: 1 # Enable Wandb logging
     save_ckpt: 0 # Enable saving checkpoint artifacts
 
   loss_interval: 1    # Wandb loss logging step interval

@@ -1,4 +1,5 @@
 import os
+import copy
 import argparse
 import torch
 from torch.utils.data import DataLoader
@@ -53,7 +54,8 @@ def main():
     os.makedirs(os.path.join(train_dir, 'checkpoints'), exist_ok=True)
     os.makedirs(os.path.join(train_dir, 'figs'), exist_ok=True)
 
-    save_config(config, os.path.join(train_dir, 'config.yml'))
+    if not config.run.resume.enable:
+        save_config(config, os.path.join(train_dir, 'config.yml'))
 
     # ----------
     # Create DataLoader
@@ -74,7 +76,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # ----------
-    # Initialize UNet Model
+    # Initialize UNet Model / EMA UNet Model
     # ----------
     sample_shape = get_sample_shape(config.data.dataset)
 
@@ -87,6 +89,27 @@ def main():
         mid_heads=config.model.mid_heads
     )
     model.to(device)
+
+    ema_model = copy.deepcopy(model)
+    for p in ema_model.parameters():
+        p.requires_grad_(False)
+    ema_model.to(device)
+
+    # ---------
+    # Resume Training
+    # ----------
+    start_step = 1  # Default starting training step
+
+    if config.run.resume.enable:
+        ckpt_path = os.path.join(train_dir, "checkpoints", config.run.resume.ckpt_name)
+        ckpt = torch.load(ckpt_path, map_location="cpu")
+
+        model.load_state_dict(ckpt["model"])
+        ema_model.load_state_dict(ckpt["ema_model"])
+
+        start_step = ckpt["step"] + 1  # Resume training step from saved checkpoint
+
+        print(f"\n==== Resuming {config.run.resume.ckpt_name} training from step {ckpt['step']} ====")
 
     # ----------
     # Create Diffusion Utilities Object
@@ -114,13 +137,15 @@ def main():
     # ----------
     trainer = Trainer(
         model=model, 
+        ema_model=ema_model,
         diffusion=diffusion, 
         optimizer=optimizer, 
         dataloader=dataloader, 
         device=device, 
         train_dir=train_dir,
         logging_config=config.logging,
-        ema_decay=config.train.ema_decay
+        ema_decay=config.train.ema_decay,
+        start_step=start_step
     )
     trainer.train(config.train.steps)
 
