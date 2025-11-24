@@ -327,10 +327,10 @@ $$
 
 To then perform a DDPM denoising step and obtain $x_{t-1}$, you simply produce a sample with mean $\mu_\theta$ and added Gaussian noise with variance $\tilde\beta_t:$
 
-$$x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathcal{N}(0,I)$$
+$$\boxed{x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathcal{N}(0,I)}$$
 
 ## Training / Generation
 
 To train a model to predict $\epsilon_\theta(x_t,t)$, we define the training objective simply as the mean squared error between the model's predicted noise and the true noise:
 
-$$L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\|\epsilon - \epsilon_\theta(x_t,t)\|_2^2\Bigr]$$
+$$\boxed{L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\|\epsilon - \epsilon_\theta(x_t,t)\|_2^2\Bigr]}$$
