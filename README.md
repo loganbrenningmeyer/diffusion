@@ -333,4 +333,4 @@ $$\boxed{x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathc
 
 To train a model to predict $\epsilon_\theta(x_t,t)$, we define the training objective simply as the mean squared error between the model's predicted noise and the true noise:
 
-$$\boxed{L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\|\epsilon - \epsilon_\theta(x_t,t)\|_2^2\Bigr]}$$
+$$\boxed{L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\Vert\epsilon - \epsilon_\theta(x_t,t)\Vert^2\Bigr]}$$
