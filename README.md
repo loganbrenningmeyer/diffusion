@@ -327,13 +327,25 @@ $$
 
 To then perform a DDPM denoising step and obtain $x_{t-1}$, you simply produce a sample with mean $\mu_\theta$ and added Gaussian noise with variance $\tilde\beta_t:$
 
-$$\boxed{x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathcal{N}(0,I)}$$
+$$
+\begin{aligned}
+x_{t-1} &= \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathcal{N}(0,I) \\
+x_{t-1} &= \boxed{\frac{1}{\sqrt{\alpha_t}}\Bigl(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\epsilon_\theta(x_t,t)\Bigl) + \sqrt{\tilde\beta_t}z}
+\end{aligned}
+$$
 
 ## Training / Generation
 
 To train a model to predict $\epsilon_\theta(x_t,t)$, we define the training objective simply as the mean squared error between the model's predicted noise and the true noise:
 
 $$\boxed{L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\Vert\epsilon - \epsilon_\theta(x_t,t)\Vert^2\Bigr]}$$
+
+With a train noise prediction model, DDPM-style image generation is as simple as sampling Gaussian noise and repeatedly applying the denoising update rule until you reach a clean image!
+
+<div align="center">
+    <img src="figs/generation.png">
+    <p align="center">DDPM image generation</p>
+</div>
 
 # Diffusion Slides
 
