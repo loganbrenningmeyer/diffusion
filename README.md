@@ -334,3 +334,7 @@ $$\boxed{x_{t-1} = \mu_\theta(x_t,t) + \sqrt{\tilde\beta_t}z,\quad z \sim \mathc
 To train a model to predict $\epsilon_\theta(x_t,t)$, we define the training objective simply as the mean squared error between the model's predicted noise and the true noise:
 
 $$\boxed{L(\theta) = \mathbb{E}_{x_0,t,\epsilon}\Bigl[\Vert\epsilon - \epsilon_\theta(x_t,t)\Vert^2\Bigr]}$$
+
+# Diffusion Slides
+
+If you'd like to see diffusion models explained from the stochastic differential equation perspective, check out [these slides](https://docs.google.com/presentation/d/1OqrJJelGhm7FuKFeKAIcXTOgOvlkOGR9AtnScGCXeKI/edit?usp=sharing)!
